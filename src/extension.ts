@@ -437,15 +437,15 @@ function registerCommands(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('alphanetix.showStatusPopup', async () => {
             // If panel already exists, just reveal it
             if (statusPopupPanel) {
-                statusPopupPanel.reveal(vscode.ViewColumn.Active, true);
+                statusPopupPanel.reveal(vscode.ViewColumn.Beside, true);
                 return;
             }
 
             const panel = vscode.window.createWebviewPanel(
                 'alphanetixStatus',
-                'Alphanetix AI',
+                'Alphanetix AI Status',
                 {
-                    viewColumn: vscode.ViewColumn.Active,
+                    viewColumn: vscode.ViewColumn.Beside,
                     preserveFocus: true
                 },
                 {
@@ -913,17 +913,42 @@ function getStatusPopupHtml(data: any, isAuthenticated: boolean): string {
         <html>
         <head>
             <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
             <style>${getStatusPopupStyles()}</style>
         </head>
         <body>
             <div class="popup-wrapper">
                 <div class="status-card">
-                    <div class="auth-message">
-                        <h2>Not signed in</h2>
-                        <p>Click the status bar item to connect your Alphanetix AI account.</p>
+                    <header class="card-header">
+                        <div class="card-title">
+                            <div class="card-title-row">
+                                <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                                    <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0Z" />
+                                    <path d="M6.27 5.06a.5.5 0 0 1 .52.04l3.5 2.5a.5.5 0 0 1 0 .8l-3.5 2.5A.5.5 0 0 1 6 10.5v-5a.5.5 0 0 1 .27-.44Z" />
+                                </svg>
+                                <span>Alphanetix AI</span>
+                            </div>
+                        </div>
+                        <button class="icon-button" onclick="closePanel()" title="Close">
+                            <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                                <path d="M2.15 2.85a.5.5 0 1 1 .7-.7L8 7.3l5.15-5.15a.5.5 0 0 1 .7.7L8.7 8l5.15 5.15a.5.5 0 0 1-.7.7L8 8.7l-5.15 5.15a.5.5 0 0 1-.7-.7L7.3 8 2.15 2.85Z" />
+                            </svg>
+                        </button>
+                    </header>
+                    <div class="card-content">
+                        <div class="auth-message">
+                            <h2>Not signed in</h2>
+                            <p>Sign in to access Alphanetix AI features</p>
+                        </div>
                     </div>
                 </div>
             </div>
+            <script>
+                const vscode = acquireVsCodeApi();
+                function closePanel() {
+                    vscode.postMessage({ command: 'close' });
+                }
+            </script>
         </body>
         </html>`;
     }
@@ -1015,6 +1040,7 @@ function getStatusPopupHtml(data: any, isAuthenticated: boolean): string {
     <html>
     <head>
         <meta charset="UTF-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <style>${getStatusPopupStyles()}</style>
     </head>
     <body>
@@ -1023,11 +1049,11 @@ function getStatusPopupHtml(data: any, isAuthenticated: boolean): string {
                 <header class="card-header">
                     <div class="card-title">
                         <div class="card-title-row">
-                            <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                            <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                                 <path d="M8 0a8 8 0 1 0 0 16A8 8 0 0 0 8 0ZM1.5 8a6.5 6.5 0 1 1 13 0 6.5 6.5 0 0 1-13 0Z" />
                                 <path d="M6.27 5.06a.5.5 0 0 1 .52.04l3.5 2.5a.5.5 0 0 1 0 .8l-3.5 2.5A.5.5 0 0 1 6 10.5v-5a.5.5 0 0 1 .27-.44Z" />
                             </svg>
-                            <span>Alphanetix AI Usage</span>
+                            <span>Alphanetix AI</span>
                         </div>
                         <div class="card-subtitle">${data.userInfo?.username || 'Unknown user'}</div>
                         <div class="card-meta">
@@ -1035,58 +1061,60 @@ function getStatusPopupHtml(data: any, isAuthenticated: boolean): string {
                             ${selectedTeam ? `<span class="meta-pill">${selectedTeam.teamName}</span>` : ''}
                         </div>
                     </div>
-                    <button class="icon-button" onclick="closePanel()" title="Close (Esc)">
-                        <svg width="12" height="12" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+                    <button class="icon-button" onclick="closePanel()" title="Close">
+                        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
                             <path d="M2.15 2.85a.5.5 0 1 1 .7-.7L8 7.3l5.15-5.15a.5.5 0 0 1 .7.7L8.7 8l5.15 5.15a.5.5 0 0 1-.7.7L8 8.7l-5.15 5.15a.5.5 0 0 1-.7-.7L7.3 8 2.15 2.85Z" />
                         </svg>
                     </button>
                 </header>
 
-                <section class="section">
-                    <div class="section-heading">
-                        <span>Usage overview</span>
-                        <span class="heading-meta">${totalCredits ? `${formatNumber(totalCredits)} total credits` : `${formatNumber(availableCredits)} credits available`}</span>
-                    </div>
-                    <div class="usage-grid">${usageOverview}</div>
-                    <div class="info-pill">
-                        ${sessionLabel}
-                    </div>
-                </section>
+                <div class="card-content">
+                    <section class="section">
+                        <div class="section-heading">
+                            <span>Usage Overview</span>
+                            <span class="heading-meta">${totalCredits ? `${formatNumber(totalCredits)} total` : `${formatNumber(availableCredits)} available`}</span>
+                        </div>
+                        <div class="usage-grid">${usageOverview}</div>
+                        <div class="info-pill">
+                            ${sessionLabel}
+                        </div>
+                    </section>
 
-                <section class="section">
-                    <div class="section-heading">
-                        <span>Workspace controls</span>
-                    </div>
-                    <div class="control-column">
-                        <div class="control-row ${selectedTeam ? 'clickable' : 'disabled'}" ${selectedTeam ? 'onclick="switchTeam()"' : ''}>
-                            <div class="control-text">
-                                <div class="control-label">Active team</div>
-                                <div class="control-value">${selectedTeam ? selectedTeam.teamName : 'Personal workspace'}</div>
-                            </div>
-                            ${selectedTeam ? `<div class="chevron">${getChevronSvg()}</div>` : ''}
+                    <section class="section">
+                        <div class="section-heading">
+                            <span>Configuration</span>
                         </div>
-                        <div class="control-row clickable" onclick="selectModel()">
-                            <div class="control-text">
-                                <div class="control-label">Model</div>
-                                <div class="control-value">${selectedModel?.displayName || 'Default model'}</div>
-                                ${selectedModel?.provider ? `<div class="control-hint">${selectedModel.provider}</div>` : ''}
+                        <div class="control-column">
+                            <div class="control-row ${selectedTeam ? 'clickable' : 'disabled'}" ${selectedTeam ? 'onclick="switchTeam()"' : ''}>
+                                <div class="control-text">
+                                    <div class="control-label">Active Team</div>
+                                    <div class="control-value">${selectedTeam ? selectedTeam.teamName : 'Personal workspace'}</div>
+                                </div>
+                                ${selectedTeam ? `<div class="chevron">${getChevronSvg()}</div>` : ''}
                             </div>
-                            <div class="chevron">${getChevronSvg()}</div>
-                        </div>
-                        <div class="control-row clickable" onclick="selectAgent()">
-                            <div class="control-text">
-                                <div class="control-label">Agent</div>
-                                <div class="control-value">${selectedAgent?.displayName || selectedAgent?.name || 'Default agent'}</div>
-                                ${selectedAgent?.description ? `<div class="control-hint">${selectedAgent.description}</div>` : ''}
+                            <div class="control-row clickable" onclick="selectModel()">
+                                <div class="control-text">
+                                    <div class="control-label">Model</div>
+                                    <div class="control-value">${selectedModel?.displayName || 'Default model'}</div>
+                                    ${selectedModel?.provider ? `<div class="control-hint">${selectedModel.provider}</div>` : ''}
+                                </div>
+                                <div class="chevron">${getChevronSvg()}</div>
                             </div>
-                            <div class="chevron">${getChevronSvg()}</div>
+                            <div class="control-row clickable" onclick="selectAgent()">
+                                <div class="control-text">
+                                    <div class="control-label">Agent</div>
+                                    <div class="control-value">${selectedAgent?.displayName || selectedAgent?.name || 'Default agent'}</div>
+                                    ${selectedAgent?.description ? `<div class="control-hint">${selectedAgent.description}</div>` : ''}
+                                </div>
+                                <div class="chevron">${getChevronSvg()}</div>
+                            </div>
                         </div>
-                    </div>
-                </section>
+                    </section>
+                </div>
 
                 <footer class="card-footer">
-                    <button class="secondary-button" onclick="refresh()">Refresh usage</button>
-                    <button class="primary-button" onclick="openSettings()">Open settings</button>
+                    <button class="secondary-button" onclick="refresh()">Refresh</button>
+                    <button class="primary-button" onclick="openSettings()">Settings</button>
                 </footer>
             </div>
         </div>
@@ -1134,115 +1162,111 @@ function getStatusPopupStyles(): string {
             color-scheme: var(--vscode-color-scheme);
         }
 
+        * {
+            box-sizing: border-box;
+        }
+
         html, body {
             height: 100%;
+            overflow: hidden;
         }
 
         body {
             margin: 0;
+            padding: 0;
             font-family: var(--vscode-font-family);
-            font-size: 12px;
+            font-size: 11px;
             color: var(--vscode-foreground);
-            background: transparent;
-            display: flex;
-            align-items: flex-end;
-            justify-content: flex-end;
-            padding: 16px;
-            box-sizing: border-box;
+            background: var(--vscode-editor-background);
         }
 
         .popup-wrapper {
             width: 100%;
             height: 100%;
             display: flex;
-            align-items: flex-end;
-            justify-content: flex-end;
-            pointer-events: none;
+            flex-direction: column;
+            overflow: hidden;
         }
 
         .status-card {
-            pointer-events: auto;
-            min-width: 320px;
-            max-width: 360px;
-            border: 1px solid var(--vscode-menu-separatorBackground);
-            border-radius: 8px;
-            background: var(--vscode-editorWidget-background);
-            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
-            overflow: hidden;
             display: flex;
             flex-direction: column;
+            height: 100%;
+            overflow: hidden;
         }
 
         .card-header {
             display: flex;
             justify-content: space-between;
-            align-items: flex-start;
-            padding: 14px 16px;
-            border-bottom: 1px solid var(--vscode-menu-separatorBackground);
-            background: var(--vscode-editorWidget-background);
-            position: sticky;
-            top: 0;
-            z-index: 2;
+            align-items: center;
+            padding: 8px 12px;
+            border-bottom: 1px solid var(--vscode-panel-border);
+            background: var(--vscode-editor-background);
+            flex-shrink: 0;
         }
 
         .card-title {
             display: flex;
             flex-direction: column;
-            gap: 4px;
+            gap: 2px;
         }
 
         .card-title-row {
             display: flex;
             align-items: center;
             gap: 6px;
-            font-size: 13px;
+            font-size: 11px;
             font-weight: 600;
-            letter-spacing: 0.2px;
+            letter-spacing: 0.1px;
         }
 
         .card-title-row svg {
-            opacity: 0.8;
+            opacity: 0.7;
+            flex-shrink: 0;
         }
 
         .card-subtitle {
-            font-size: 11px;
+            font-size: 10px;
             color: var(--vscode-descriptionForeground);
+            font-weight: normal;
         }
 
         .card-meta {
             display: flex;
-            gap: 6px;
+            gap: 4px;
             flex-wrap: wrap;
+            margin-top: 2px;
         }
 
         .tier-chip {
             background: var(--vscode-badge-background);
             color: var(--vscode-badge-foreground);
-            font-size: 9px;
+            font-size: 8px;
             font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.6px;
-            padding: 2px 6px;
-            border-radius: 4px;
+            letter-spacing: 0.5px;
+            padding: 1px 4px;
+            border-radius: 2px;
         }
 
         .meta-pill {
-            background: transparent;
+            background: var(--vscode-input-background);
             color: var(--vscode-descriptionForeground);
-            border: 1px solid var(--vscode-menu-separatorBackground);
-            font-size: 10px;
-            border-radius: 999px;
-            padding: 2px 8px;
+            border: 1px solid var(--vscode-panel-border);
+            font-size: 9px;
+            border-radius: 2px;
+            padding: 1px 4px;
         }
 
         .icon-button {
             border: none;
             background: transparent;
             color: var(--vscode-descriptionForeground);
-            border-radius: 4px;
+            border-radius: 2px;
             padding: 4px;
             cursor: pointer;
-            transition: background 0.12s ease, color 0.12s ease;
+            transition: background 0.1s ease, color 0.1s ease;
+            flex-shrink: 0;
         }
 
         .icon-button:hover {
@@ -1250,21 +1274,25 @@ function getStatusPopupStyles(): string {
             color: var(--vscode-foreground);
         }
 
-        .section {
-            padding: 16px;
-            border-bottom: 1px solid var(--vscode-menu-separatorBackground);
+        .card-content {
+            flex: 1;
+            overflow-y: auto;
+            overflow-x: hidden;
         }
 
-        .section:last-of-type {
-            border-bottom: none;
-            padding-bottom: 18px;
+        .section {
+            padding: 12px;
+        }
+
+        .section:not(:last-of-type) {
+            border-bottom: 1px solid var(--vscode-panel-border);
         }
 
         .section-heading {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            font-size: 11px;
+            font-size: 9px;
             font-weight: 600;
             text-transform: uppercase;
             letter-spacing: 0.3px;
@@ -1273,56 +1301,60 @@ function getStatusPopupStyles(): string {
         }
 
         .heading-meta {
-            font-size: 10px;
+            font-size: 9px;
             color: var(--vscode-descriptionForeground);
+            font-weight: normal;
         }
 
         .usage-grid {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 8px;
         }
 
         .usage-block {
-            background: var(--vscode-sideBar-background);
-            border: 1px solid var(--vscode-menu-separatorBackground);
-            border-radius: 6px;
-            padding: 10px 12px;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 0;
         }
 
         .usage-line {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            margin-bottom: 6px;
+            margin-bottom: 3px;
         }
 
         .usage-title {
-            font-size: 11px;
-            font-weight: 600;
+            font-size: 10px;
+            font-weight: 500;
+            color: var(--vscode-foreground);
         }
 
         .usage-badge {
-            font-size: 9px;
+            font-size: 8px;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
-            padding: 1px 6px;
-            border-radius: 999px;
+            letter-spacing: 0.4px;
+            padding: 1px 5px;
+            border-radius: 2px;
             background: var(--vscode-badge-background);
             color: var(--vscode-badge-foreground);
         }
 
         .usage-value {
-            font-size: 13px;
+            font-size: 11px;
             font-weight: 600;
-            margin-bottom: 6px;
+            margin-bottom: 3px;
+            color: var(--vscode-foreground);
         }
 
         .progress-track {
-            height: 6px;
-            border-radius: 3px;
+            height: 3px;
+            border-radius: 2px;
             background: var(--vscode-input-background);
             overflow: hidden;
+            margin-bottom: 2px;
         }
 
         .progress-fill {
@@ -1333,100 +1365,118 @@ function getStatusPopupStyles(): string {
         }
 
         .progress-fill.accent-blue {
-            background: linear-gradient(90deg, var(--vscode-charts-blue) 0%, var(--vscode-charts-lineHover) 100%);
+            background: var(--vscode-charts-blue);
         }
 
         .progress-fill.accent-teal {
-            background: linear-gradient(90deg, #2ab3a6 0%, #35c9bb 100%);
+            background: var(--vscode-charts-green);
         }
 
         .progress-fill.accent-purple {
-            background: linear-gradient(90deg, #7f68e9 0%, #9a7ff5 100%);
+            background: var(--vscode-charts-purple);
         }
 
         .progress-fill.accent-amber {
-            background: linear-gradient(90deg, #d79535 0%, #f5b041 100%);
+            background: var(--vscode-charts-orange);
         }
 
         .usage-status {
-            margin-top: 6px;
-            font-size: 10px;
+            font-size: 9px;
             color: var(--vscode-descriptionForeground);
         }
 
         .info-pill {
-            margin-top: 12px;
-            font-size: 10px;
+            margin-top: 8px;
+            font-size: 9px;
             color: var(--vscode-descriptionForeground);
-            background: var(--vscode-sideBar-background);
-            border: 1px dashed var(--vscode-menu-separatorBackground);
-            border-radius: 6px;
-            padding: 8px 10px;
+            background: transparent;
+            border: none;
+            border-radius: 0;
+            padding: 0;
         }
 
         .control-column {
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 1px;
         }
 
         .control-row {
             display: flex;
             justify-content: space-between;
             align-items: center;
-            gap: 12px;
-            padding: 10px 12px;
-            background: var(--vscode-sideBar-background);
-            border: 1px solid var(--vscode-menu-separatorBackground);
-            border-radius: 6px;
+            gap: 8px;
+            padding: 8px 0;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid transparent;
+            border-radius: 0;
+            min-height: 36px;
         }
 
         .control-row.clickable {
             cursor: pointer;
-            transition: background 0.12s ease, border 0.12s ease;
+            transition: background 0.1s ease;
         }
 
         .control-row.clickable:hover {
             background: var(--vscode-list-hoverBackground);
-            border-color: var(--vscode-focusBorder);
+        }
+
+        .control-row:not(:last-child) {
+            border-bottom-color: var(--vscode-panel-border);
         }
 
         .control-row.disabled {
-            opacity: 0.65;
+            opacity: 0.6;
         }
 
         .control-text {
             display: flex;
             flex-direction: column;
-            gap: 2px;
+            gap: 1px;
+            flex: 1;
+            min-width: 0;
         }
 
         .control-label {
-            font-size: 10px;
+            font-size: 9px;
             text-transform: uppercase;
-            letter-spacing: 0.3px;
+            letter-spacing: 0.2px;
             color: var(--vscode-descriptionForeground);
         }
 
         .control-value {
-            font-size: 12px;
+            font-size: 11px;
             font-weight: 600;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         .control-hint {
-            font-size: 10px;
+            font-size: 9px;
             color: var(--vscode-descriptionForeground);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .chevron {
+            flex-shrink: 0;
         }
 
         .chevron svg {
-            opacity: 0.45;
+            opacity: 0.5;
         }
 
         .card-footer {
             display: flex;
-            gap: 8px;
-            padding: 12px 16px 16px 16px;
-            background: var(--vscode-editorWidget-background);
+            gap: 6px;
+            padding: 8px 12px;
+            background: var(--vscode-editor-background);
+            border-top: 1px solid var(--vscode-panel-border);
+            flex-shrink: 0;
         }
 
         .card-footer button {
@@ -1435,12 +1485,12 @@ function getStatusPopupStyles(): string {
 
         button {
             font-family: var(--vscode-font-family);
-            font-size: 11px;
-            border-radius: 4px;
+            font-size: 10px;
+            border-radius: 2px;
             border: 1px solid transparent;
-            padding: 8px 12px;
+            padding: 5px 8px;
             cursor: pointer;
-            transition: background 0.12s ease, border 0.12s ease, color 0.12s ease;
+            transition: background 0.1s ease, border 0.1s ease, color 0.1s ease;
         }
 
         .primary-button {
@@ -1454,50 +1504,53 @@ function getStatusPopupStyles(): string {
         }
 
         .secondary-button {
-            background: transparent;
+            background: var(--vscode-input-background);
             color: var(--vscode-foreground);
-            border-color: var(--vscode-button-border, var(--vscode-menu-separatorBackground));
+            border-color: var(--vscode-panel-border);
         }
 
         .secondary-button:hover {
-            background: var(--vscode-toolbar-hoverBackground);
+            background: var(--vscode-list-hoverBackground);
         }
 
         .auth-message {
-            border: 1px dashed var(--vscode-menu-separatorBackground);
-            border-radius: 8px;
-            padding: 24px;
+            border: none;
+            border-radius: 0;
+            padding: 24px 12px;
             text-align: center;
             color: var(--vscode-descriptionForeground);
-            background: var(--vscode-editorWidget-background);
+            background: transparent;
+            margin: 0;
         }
 
         .auth-message h2 {
-            margin: 0 0 8px 0;
-            font-size: 14px;
+            margin: 0 0 6px 0;
+            font-size: 12px;
             color: var(--vscode-foreground);
         }
 
         .auth-message p {
             margin: 0;
-            font-size: 11px;
+            font-size: 10px;
         }
 
         ::-webkit-scrollbar {
-            width: 8px;
+            width: 10px;
         }
 
         ::-webkit-scrollbar-track {
-            background: transparent;
+            background: var(--vscode-editor-background);
         }
 
         ::-webkit-scrollbar-thumb {
             background: var(--vscode-scrollbarSlider-background);
-            border-radius: 4px;
+            border-radius: 5px;
+            border: 2px solid var(--vscode-editor-background);
         }
 
         ::-webkit-scrollbar-thumb:hover {
             background: var(--vscode-scrollbarSlider-hoverBackground);
+        }
         }
     `;
 }
