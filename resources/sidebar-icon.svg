@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128" viewBox="0 0 128 128">
+  <defs>
+    <linearGradient id="grad1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#667eea;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#764ba2;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- Background Circle -->
+  <circle cx="64" cy="64" r="60" fill="url(#grad1)"/>
+  
+  <!-- AI Brain Icon -->
+  <g transform="translate(32, 32)">
+    <!-- Brain outline -->
+    <path d="M32,8 C25,8 20,12 18,18 C16,18 14,20 14,23 C14,26 16,28 18,28 L18,32 C18,38 22,42 28,44 L28,48 C28,50 30,52 32,52 C34,52 36,50 36,48 L36,44 C42,42 46,38 46,32 L46,28 C48,28 50,26 50,23 C50,20 48,18 46,18 C44,12 39,8 32,8 Z" 
+          fill="white" opacity="0.9"/>
+    
+    <!-- Neural network dots -->
+    <circle cx="24" cy="24" r="2" fill="white"/>
+    <circle cx="32" cy="20" r="2" fill="white"/>
+    <circle cx="40" cy="24" r="2" fill="white"/>
+    <circle cx="28" cy="32" r="2" fill="white"/>
+    <circle cx="36" cy="32" r="2" fill="white"/>
+    <circle cx="32" cy="36" r="2" fill="white"/>
+    
+    <!-- Connection lines -->
+    <line x1="24" y1="24" x2="32" y2="20" stroke="white" stroke-width="0.5" opacity="0.6"/>
+    <line x1="32" y1="20" x2="40" y2="24" stroke="white" stroke-width="0.5" opacity="0.6"/>
+    <line x1="24" y1="24" x2="28" y2="32" stroke="white" stroke-width="0.5" opacity="0.6"/>
+    <line x1="40" y1="24" x2="36" y2="32" stroke="white" stroke-width="0.5" opacity="0.6"/>
+    <line x1="28" y1="32" x2="32" y2="36" stroke="white" stroke-width="0.5" opacity="0.6"/>
+    <line x1="36" y1="32" x2="32" y2="36" stroke="white" stroke-width="0.5" opacity="0.6"/>
+  </g>
+  
+  <!-- Code brackets -->
+  <text x="20" y="100" font-family="monospace" font-size="32" fill="white" opacity="0.8">&lt;</text>
+  <text x="92" y="100" font-family="monospace" font-size="32" fill="white" opacity="0.8">/&gt;</text>
+</svg>

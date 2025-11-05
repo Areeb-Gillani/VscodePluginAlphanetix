@@ -1,0 +1,267 @@
+{
+  "name": "alphanetix-code-assistant",
+  "displayName": "Alphanetix Code Assistant",
+  "description": "AI-powered code completion and assistance integrated with AlphanetixAI Platform",
+  "version": "1.0.0",
+  "publisher": "alphanetix",
+  "icon": "resources/icon.png",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": [
+    "Programming Languages",
+    "Machine Learning",
+    "Snippets",
+    "Other"
+  ],
+  "keywords": [
+    "ai",
+    "copilot",
+    "code completion",
+    "assistant",
+    "alphanetix"
+  ],
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "alphanetix.login",
+        "title": "Sign In",
+        "category": "Alphanetix"
+      },
+      {
+        "command": "alphanetix.logout",
+        "title": "Sign Out",
+        "category": "Alphanetix"
+      },
+      {
+        "command": "alphanetix.debugExtension",
+        "title": "Debug Extension",
+        "category": "Alphanetix"
+      },
+      {
+        "command": "alphanetix.mcpDebug",
+        "title": "MCP Debug",
+        "category": "Alphanetix"
+      },
+      {
+        "command": "alphanetix.switchTeam",
+        "title": "Switch Team",
+        "category": "Alphanetix"
+      },
+      {
+        "command": "alphanetix.selectModel",
+        "title": "Select AI Model",
+        "category": "Alphanetix"
+      },
+      {
+        "command": "alphanetix.selectAgent",
+        "title": "Select AI Agent",
+        "category": "Alphanetix"
+      },
+      {
+        "command": "alphanetix.openChat",
+        "title": "Open Chat",
+        "category": "Alphanetix",
+        "icon": "$(comment-discussion)"
+      },
+      {
+        "command": "alphanetix.explainCode",
+        "title": "Explain Selected Code",
+        "category": "Alphanetix"
+      },
+      {
+        "command": "alphanetix.fixCode",
+        "title": "Fix/Improve Selected Code",
+        "category": "Alphanetix"
+      },
+      {
+        "command": "alphanetix.generateTests",
+        "title": "Generate Tests for Selected Code",
+        "category": "Alphanetix"
+      },
+      {
+        "command": "alphanetix.generateDocs",
+        "title": "Generate Documentation",
+        "category": "Alphanetix"
+      },
+      {
+        "command": "alphanetix.refactorCode",
+        "title": "Refactor Selected Code",
+        "category": "Alphanetix"
+      },
+      {
+        "command": "alphanetix.refreshQuota",
+        "title": "Refresh Quota Information",
+        "category": "Alphanetix",
+        "icon": "$(refresh)"
+      },
+      {
+        "command": "alphanetix.statusView.refresh",
+        "title": "Refresh Status View",
+        "category": "Alphanetix"
+      },
+      {
+        "command": "alphanetix.chatView.refresh",
+        "title": "Refresh Chat View",
+        "category": "Alphanetix"
+      },
+      {
+        "command": "alphanetix.settingsView.refresh",
+        "title": "Refresh Settings View",
+        "category": "Alphanetix"
+      },
+      {
+        "command": "alphanetix.showSettings",
+        "title": "Show Settings",
+        "category": "Alphanetix",
+        "icon": "$(settings-gear)"
+      }
+    ],
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "alphanetix-sidebar",
+          "title": "Alphanetix AI",
+          "icon": "resources/sidebar-icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "alphanetix-sidebar": [
+        {
+          "id": "alphanetix.mainView",
+          "name": "Alphanetix AI",
+          "type": "webview"
+        }
+      ]
+    },
+    "menus": {
+      "editor/context": [
+        {
+          "command": "alphanetix.explainCode",
+          "when": "editorHasSelection",
+          "group": "alphanetix@1"
+        },
+        {
+          "command": "alphanetix.fixCode",
+          "when": "editorHasSelection",
+          "group": "alphanetix@2"
+        },
+        {
+          "command": "alphanetix.refactorCode",
+          "when": "editorHasSelection",
+          "group": "alphanetix@3"
+        },
+        {
+          "command": "alphanetix.generateTests",
+          "when": "editorHasSelection",
+          "group": "alphanetix@4"
+        },
+        {
+          "command": "alphanetix.generateDocs",
+          "when": "editorHasSelection",
+          "group": "alphanetix@5"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "alphanetix.explainCode",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "alphanetix.fixCode",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "alphanetix.refactorCode",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "alphanetix.generateTests",
+          "when": "editorHasSelection"
+        },
+        {
+          "command": "alphanetix.generateDocs",
+          "when": "editorHasSelection"
+        }
+      ]
+    },
+    "configuration": {
+      "title": "Alphanetix Code Assistant",
+      "properties": {
+        "alphanetix.apiUrl": {
+          "type": "string",
+          "default": "http://localhost:8080",
+          "description": "AlphanetixAI API base URL"
+        },
+        "alphanetix.enableInlineCompletion": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable inline code completion suggestions"
+        },
+        "alphanetix.completionDelay": {
+          "type": "number",
+          "default": 500,
+          "description": "Delay (in ms) before triggering inline completion"
+        },
+        "alphanetix.maxCompletionLines": {
+          "type": "number",
+          "default": 5,
+          "description": "Maximum number of lines to suggest in inline completion"
+        },
+        "alphanetix.autoSwitchTeamContext": {
+          "type": "boolean",
+          "default": true,
+          "description": "Automatically load team context when switching teams"
+        },
+        "alphanetix.showQuotaWarnings": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show warnings when quota is running low"
+        },
+        "alphanetix.lowQuotaThreshold": {
+          "type": "number",
+          "default": 100,
+          "description": "Credits remaining threshold for low quota warning"
+        }
+      }
+    },
+    "uriHandlers": [
+      {
+        "schemes": ["vscode"],
+        "authority": "alphanetix-code-assistant"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile && npm run lint",
+    "lint": "eslint src --ext ts",
+    "test": "node ./out/test/runTest.js",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "@types/node": "^20.10.0",
+    "@types/vscode": "^1.85.0",
+    "@typescript-eslint/eslint-plugin": "^6.13.0",
+    "@typescript-eslint/parser": "^6.13.0",
+    "@vscode/test-electron": "^2.3.8",
+    "eslint": "^8.54.0",
+    "typescript": "^5.3.2",
+    "@vscode/vsce": "^2.22.0"
+  },
+  "dependencies": {
+    "axios": "^1.6.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Areeb-Gillani/AlphanetixAI"
+  },
+  "license": "MIT"
+}
