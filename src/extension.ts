@@ -1610,7 +1610,7 @@ const getStatusTooltipContent = (options: {
     sections.push('');
     
     // Settings hint with gear icon
-    sections.push(`$(gear) Click to conmfigure`);
+    sections.push(`$(gear) Click to configure`);
 
     return sections.join('\n');
 };
