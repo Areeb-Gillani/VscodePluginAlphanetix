@@ -24,7 +24,7 @@ export class AuthService {
     public async login(): Promise<boolean> {
         try {
             const config = vscode.workspace.getConfiguration('alphanetix');
-            const apiUrl = config.get<string>('apiUrl') || 'http://localhost:8080';
+            const apiUrl = config.get<string>('apiUrl') || 'http://localhost:9100';
             
             // Generate a unique state for this auth session
             const state = this.generateState();
@@ -98,7 +98,7 @@ export class AuthService {
 
             // Make login request
             const config = vscode.workspace.getConfiguration('alphanetix');
-            const apiUrl = config.get<string>('apiUrl') || 'http://localhost:8080';
+            const apiUrl = config.get<string>('apiUrl') || 'http://localhost:9100';
 
             const response = await fetch(`${apiUrl}/api/auth/login`, {
                 method: 'POST',
@@ -141,7 +141,7 @@ export class AuthService {
     private async validateAndStoreToken(token: string): Promise<boolean> {
         try {
             const config = vscode.workspace.getConfiguration('alphanetix');
-            const apiUrl = config.get<string>('apiUrl') || 'http://localhost:8080';
+            const apiUrl = config.get<string>('apiUrl') || 'http://localhost:9100';
 
             const response = await fetch(`${apiUrl}/api/auth/validate-token`, {
                 method: 'POST',
@@ -233,7 +233,7 @@ export class AuthService {
     private async fetchAndStoreUserProfile(): Promise<void> {
         try {
             const config = vscode.workspace.getConfiguration('alphanetix');
-            const apiUrl = config.get<string>('apiUrl') || 'http://localhost:8080';
+            const apiUrl = config.get<string>('apiUrl') || 'http://localhost:9100';
             const token = await StateManager.getInstance().getAuthToken();
 
             if (!token) {

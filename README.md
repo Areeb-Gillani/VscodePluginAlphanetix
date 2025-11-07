@@ -67,7 +67,7 @@ After installation:
    - **Username/Password**: Enter credentials directly
 
 ### 2. Configure API URL (Optional)
-By default, the extension connects to `http://localhost:8080`. To change this:
+By default, the extension connects to `http://localhost:9100`. To change this:
 1. Open Settings (`Ctrl+,` / `Cmd+,`)
 2. Search for "Alphanetix"
 3. Update "Api Url" to your server address
@@ -125,7 +125,7 @@ Example questions:
 
 | Setting | Default | Description |
 |---------|---------|-------------|
-| `alphanetix.apiUrl` | `http://localhost:8080` | AlphanetixAI API base URL |
+| `alphanetix.apiUrl` | `http://localhost:9100` | AlphanetixAI API base URL |
 | `alphanetix.enableInlineCompletion` | `true` | Enable inline code completion |
 | `alphanetix.completionDelay` | `500` | Delay (ms) before showing completions |
 | `alphanetix.maxCompletionLines` | `5` | Max lines in completion suggestions |

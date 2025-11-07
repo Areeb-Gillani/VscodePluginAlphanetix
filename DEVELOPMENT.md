@@ -238,7 +238,7 @@ Send the `.vsix` file to users who can install it manually.
 
 ### Configure API URL
 
-The extension connects to `http://localhost:8080` by default.
+The extension connects to `http://localhost:9100` by default.
 
 To change:
 1. Open Settings (Ctrl+,)
@@ -256,7 +256,7 @@ Or via JSON:
 
 ```typescript
 // In Debug Console:
-fetch('http://localhost:8080/api/models')
+fetch('http://localhost:9100/api/models')
   .then(r => r.json())
   .then(console.log)
 ```

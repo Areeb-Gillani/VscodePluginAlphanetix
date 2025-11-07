@@ -79,7 +79,7 @@ app:
 
 1. **User clicks "Login" in VS Code**
    - Extension calls `AuthService.login()`
-   - Opens browser to: `http://localhost:8080/auth/vscode-login?state=<random-uuid>`
+   - Opens browser to: `http://localhost:9100/auth/vscode-login?state=<random-uuid>`
 
 2. **Backend generates state**
    - Server generates unique state parameter
@@ -110,7 +110,7 @@ app:
 ## 🚀 **Testing the Complete Flow**
 
 ### Prerequisites:
-1. Backend server running on `http://localhost:8080`
+1. Backend server running on `http://localhost:9100`
 2. React frontend running on `http://localhost:3000`
 3. PostgreSQL database running
 4. VS Code extension installed in Extension Development Host
@@ -163,7 +163,7 @@ function LoginPage() {
   const handleLogin = async (username: string, password: string) => {
     try {
       // Normal login API call
-      const response = await fetch('http://localhost:8080/api/auth/login', {
+      const response = await fetch('http://localhost:9100/api/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password })

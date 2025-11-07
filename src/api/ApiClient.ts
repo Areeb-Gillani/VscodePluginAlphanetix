@@ -62,7 +62,7 @@ export class ApiClient {
 
     private getApiUrl(): string {
         const config = vscode.workspace.getConfiguration('alphanetix');
-        return config.get<string>('apiUrl') || 'http://localhost:8080';
+        return config.get<string>('apiUrl') || 'http://localhost:9100';
     }
 
     public updateBaseUrl(): void {

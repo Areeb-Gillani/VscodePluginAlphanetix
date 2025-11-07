@@ -166,7 +166,7 @@ npm run package
 ### API Connection
 ```json
 {
-  "alphanetix.apiUrl": "http://localhost:8080"
+  "alphanetix.apiUrl": "http://localhost:9100"
 }
 ```
 
