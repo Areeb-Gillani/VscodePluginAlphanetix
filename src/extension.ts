@@ -9,6 +9,7 @@ import { InlineCompletionProvider } from './providers/InlineCompletionProvider';
 import { MainViewProvider } from './views/MainViewProvider';
 import { CodeActionProvider } from './providers/CodeActionProvider';
 import { MCPService } from './mcp/MCPService';
+import { McpCapabilityService } from './services/McpCapabilityService';
 
 let statusBarItem: vscode.StatusBarItem;
 let statusPopupPanel: vscode.WebviewPanel | undefined;
@@ -18,6 +19,17 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Initialize state manager
     StateManager.initialize(context);
+
+    // Initialize MCP capability service
+    const mcpCapabilityService = McpCapabilityService.getInstance();
+    mcpCapabilityService.initialize().then(() => {
+        console.log('🔧 MCP Capability Service initialized');
+    }).catch(error => {
+        console.error('🔧 Failed to initialize MCP Capability Service:', error);
+        vscode.window.showWarningMessage(
+            'Failed to initialize MCP tools. Tool execution may not work properly.'
+        );
+    });
 
     // Register URI handler for authentication callback
     context.subscriptions.push(

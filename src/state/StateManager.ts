@@ -61,6 +61,11 @@ export class StateManager {
         await this.context.globalState.update('alphanetix.userInfo', undefined);
     }
 
+    async getUserId(): Promise<string | undefined> {
+        const userInfo = await this.getUserInfo();
+        return userInfo?.id;
+    }
+
     // Selected Team
     async getSelectedTeam(): Promise<string | undefined> {
         return this.context.globalState.get<string>('alphanetix.selectedTeamId');
@@ -100,6 +105,28 @@ export class StateManager {
         await this.context.globalState.update('alphanetix.selectedAgentId', undefined);
     }
 
+    // Current Session
+    async getCurrentSessionId(): Promise<string | undefined> {
+        return this.context.globalState.get<string>('alphanetix.currentSessionId');
+    }
+
+    async setCurrentSessionId(sessionId: string): Promise<void> {
+        await this.context.globalState.update('alphanetix.currentSessionId', sessionId);
+    }
+
+    async clearCurrentSessionId(): Promise<void> {
+        await this.context.globalState.update('alphanetix.currentSessionId', undefined);
+    }
+
+    // Session Mode (ask or agent)
+    async getSessionMode(): Promise<'ask' | 'agent'> {
+        return this.context.globalState.get<'ask' | 'agent'>('alphanetix.sessionMode') || 'agent';
+    }
+
+    async setSessionMode(mode: 'ask' | 'agent'): Promise<void> {
+        await this.context.globalState.update('alphanetix.sessionMode', mode);
+    }
+
     // Team Context (System Prompt)
     async getTeamContext(teamId: string): Promise<string | undefined> {
         const contexts = this.context.globalState.get<Record<string, string>>('alphanetix.teamContexts') || {};
@@ -123,6 +150,7 @@ export class StateManager {
         await this.clearSelectedTeam();
         await this.clearSelectedModel();
         await this.clearSelectedAgent();
+        await this.clearCurrentSessionId();
         await this.clearAllTeamContexts();
     }
 
