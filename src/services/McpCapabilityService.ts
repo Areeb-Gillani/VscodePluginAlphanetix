@@ -7,10 +7,22 @@ import { ReadFileExecutor } from '../mcp/executors/filesystem/ReadFileExecutor';
 import { WriteFileExecutor } from '../mcp/executors/filesystem/WriteFileExecutor';
 import { EditFileExecutor } from '../mcp/executors/filesystem/EditFileExecutor';
 import { ListDirectoryExecutor } from '../mcp/executors/filesystem/ListDirectoryExecutor';
+import { DeleteFileExecutor } from '../mcp/executors/filesystem/DeleteFileExecutor';
+import { MultiEditExecutor } from '../mcp/executors/filesystem/MultiEditExecutor';
+import { ReapplyExecutor } from '../mcp/executors/filesystem/ReapplyExecutor';
+import { EditNotebookExecutor } from '../mcp/executors/filesystem/EditNotebookExecutor';
 import { GlobExecutor } from '../mcp/executors/search/GlobExecutor';
 import { GrepSearchExecutor } from '../mcp/executors/search/GrepSearchExecutor';
 import { CodebaseSearchExecutor } from '../mcp/executors/search/CodebaseSearchExecutor';
 import { BashExecutor } from '../mcp/executors/shell/BashExecutor';
+import { BashOutputExecutor } from '../mcp/executors/shell/BashOutputExecutor';
+import { KillBashExecutor } from '../mcp/executors/shell/KillBashExecutor';
+import { ExitPlanModeExecutor } from '../mcp/executors/workflow/ExitPlanModeExecutor';
+import { TodoWriteExecutor } from '../mcp/executors/workflow/TodoWriteExecutor';
+import { WebFetchExecutor } from '../mcp/executors/web/WebFetchExecutor';
+import { WebSearchExecutor } from '../mcp/executors/web/WebSearchExecutor';
+import { CreateDiagramExecutor } from '../mcp/executors/visualization/CreateDiagramExecutor';
+import { TaskAgentExecutor } from '../mcp/executors/agent/TaskAgentExecutor';
 
 interface EnhancedToolFormat {
     version: string;
@@ -185,6 +197,10 @@ export class McpCapabilityService {
         registry.register('write_file', new WriteFileExecutor());
         registry.register('edit_file', new EditFileExecutor());
         registry.register('ls', new ListDirectoryExecutor());
+        registry.register('delete_file', new DeleteFileExecutor());
+        registry.register('multi_edit', new MultiEditExecutor());
+        registry.register('reapply', new ReapplyExecutor());
+        registry.register('edit_notebook', new EditNotebookExecutor());
 
         // Register search executors
         registry.register('glob', new GlobExecutor());
@@ -193,6 +209,22 @@ export class McpCapabilityService {
 
         // Register shell executors
         registry.register('bash', new BashExecutor());
+        registry.register('bash_output', new BashOutputExecutor());
+        registry.register('kill_bash', new KillBashExecutor());
+
+        // Register workflow executors
+        registry.register('exit_plan_mode', new ExitPlanModeExecutor());
+        registry.register('todo_write', new TodoWriteExecutor());
+
+        // Register web executors
+        registry.register('web_fetch', new WebFetchExecutor());
+        registry.register('web_search', new WebSearchExecutor());
+
+        // Register visualization executors
+        registry.register('create_diagram', new CreateDiagramExecutor());
+
+        // Register agent executors
+        registry.register('task', new TaskAgentExecutor());
 
         console.log(`🔧 McpCapability: Registered ${registry.getToolNames().length} executors`);
     }
