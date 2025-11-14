@@ -75,6 +75,7 @@ interface TransformedToolsResponse {
 export class McpCapabilityService {
     private static instance: McpCapabilityService;
     private toolsLoaded = false;
+    private toolsAvailable = false;
     private toolDefinitions: ToolDefinition[] = [];
     private extensionVersion: string;
     private registeredCapabilities: Map<string, CapabilityRegistrationResponse> = new Map();
@@ -96,14 +97,27 @@ export class McpCapabilityService {
     public async initialize(): Promise<void> {
         console.log('🔧 McpCapability: Initializing service...');
         
-        await this.loadToolDefinitions();
-        this.registerExecutors();
-        
-        console.log(`🔧 McpCapability: Initialized with ${this.toolDefinitions.length} tools`);
+        try {
+            await this.loadToolDefinitions();
+            this.registerExecutors();
+            this.toolsAvailable = true;
+            console.log(`✅ McpCapability: Initialized successfully with ${this.toolDefinitions.length} tools`);
+        } catch (error) {
+            console.warn('⚠️ McpCapability: Failed to initialize MCP tools, running in chat-only mode:', error);
+            this.toolsAvailable = false;
+            // Don't throw - allow extension to continue in chat-only mode
+        }
     }
 
     /**
-     * Load tool definitions from alphanetix-mcp-tools-enhanced.json
+     * Check if MCP tools are available
+     */
+    public isToolsAvailable(): boolean {
+        return this.toolsAvailable;
+    }
+
+    /**
+     * Load tool definitions from bundled alphanetix-mcp-tools-enhanced.json
      */
     public async loadToolDefinitions(): Promise<void> {
         if (this.toolsLoaded) {
@@ -112,49 +126,19 @@ export class McpCapabilityService {
         }
 
         try {
-            // Get the backend workspace folder path
-            const workspaceFolders = vscode.workspace.workspaceFolders;
-            if (!workspaceFolders || workspaceFolders.length === 0) {
-                throw new Error('No workspace folder found');
+            // Get the extension path
+            const extension = vscode.extensions.getExtension('alphanetix.alphanetix-code-assistant');
+            if (!extension) {
+                throw new Error('Extension not found - cannot load tool definitions');
             }
 
-            // Look for the AlphanetixAI backend folder
-            let toolsJsonPath: string | null = null;
+            const extensionPath = extension.extensionPath;
+            
+            // Load from bundled resources
+            const toolsJsonPath = path.join(extensionPath, 'resources', 'alphanetix-mcp-tools-enhanced.json');
 
-            for (const folder of workspaceFolders) {
-                const possiblePath = path.join(
-                    folder.uri.fsPath,
-                    '..',
-                    'AlphanetixAI',
-                    'alphanetix-mcp-tools-enhanced.json'
-                );
-
-                if (fs.existsSync(possiblePath)) {
-                    toolsJsonPath = possiblePath;
-                    break;
-                }
-            }
-
-            // Fallback: try relative to extension
-            if (!toolsJsonPath) {
-                const extensionPath = vscode.extensions.getExtension('alphanetix.alphanetix-code-assistant')?.extensionPath;
-                if (extensionPath) {
-                    const fallbackPath = path.join(
-                        extensionPath,
-                        '..',
-                        '..',
-                        'AlphanetixAI',
-                        'alphanetix-mcp-tools-enhanced.json'
-                    );
-                    
-                    if (fs.existsSync(fallbackPath)) {
-                        toolsJsonPath = fallbackPath;
-                    }
-                }
-            }
-
-            if (!toolsJsonPath) {
-                throw new Error('Could not find alphanetix-mcp-tools-enhanced.json');
+            if (!fs.existsSync(toolsJsonPath)) {
+                throw new Error(`Tool definitions file not found at: ${toolsJsonPath}`);
             }
 
             console.log(`🔧 McpCapability: Loading tools from ${toolsJsonPath}`);
@@ -179,9 +163,9 @@ export class McpCapabilityService {
                 registry.registerToolDefinition(tool);
             }
 
-            console.log(`🔧 McpCapability: Loaded ${this.toolDefinitions.length} tool definitions`);
+            console.log(`✅ McpCapability: Loaded ${this.toolDefinitions.length} tool definitions`);
         } catch (error) {
-            console.error('🔧 McpCapability: Failed to load tool definitions:', error);
+            console.error('❌ McpCapability: Failed to load tool definitions:', error);
             throw error;
         }
     }

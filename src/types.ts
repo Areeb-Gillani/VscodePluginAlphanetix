@@ -129,6 +129,8 @@ export interface AICompletionRequest {
     chatSessionId?: string;
     aiModelId?: string;
     estimatedInputTokens: number; // Required field - server expects non-null integer
+    tools?: any[]; // MCP tool definitions transformed for the LLM provider
+    toolResults?: any[]; // Results from previous tool executions
 }
 
 export interface AICompletionResponse {
@@ -141,11 +143,13 @@ export interface AICompletionResponse {
     
     creditsUsed: number;
     chatSessionId?: string;
+    toolCalls?: any[]; // Tool calls requested by the LLM
     choices?: Array<{
         index: number;
         message: {
             role: string;
             content: string;
+            toolCalls?: any[]; // Tool calls in the message
         };
         finishReason: string;
     }>;

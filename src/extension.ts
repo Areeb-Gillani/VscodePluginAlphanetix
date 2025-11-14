@@ -23,12 +23,14 @@ export function activate(context: vscode.ExtensionContext) {
     // Initialize MCP capability service
     const mcpCapabilityService = McpCapabilityService.getInstance();
     mcpCapabilityService.initialize().then(() => {
-        console.log('🔧 MCP Capability Service initialized');
+        if (mcpCapabilityService.isToolsAvailable()) {
+            console.log('✅ MCP Capability Service initialized - Tool execution enabled');
+        } else {
+            console.log('⚠️ MCP Capability Service initialized in chat-only mode - Tool execution disabled');
+        }
     }).catch(error => {
-        console.error('🔧 Failed to initialize MCP Capability Service:', error);
-        vscode.window.showWarningMessage(
-            'Failed to initialize MCP tools. Tool execution may not work properly.'
-        );
+        console.error('❌ Failed to initialize MCP Capability Service:', error);
+        console.log('⚠️ Running in chat-only mode - Tool execution disabled');
     });
 
     // Register URI handler for authentication callback
@@ -193,6 +195,7 @@ function registerCommands(context: vscode.ExtensionContext) {
         vscode.commands.registerCommand('alphanetix.debugExtension', async () => {
             const authService = AuthService.getInstance();
             const stateManager = StateManager.getInstance();
+            const mcpCapabilityService = McpCapabilityService.getInstance();
             const isAuthenticated = await authService.isAuthenticated();
             const currentUser = await stateManager.getUserInfo();
             const authToken = await stateManager.getAuthToken();
@@ -209,6 +212,8 @@ function registerCommands(context: vscode.ExtensionContext) {
                     username: currentUser.username,
                     userType: currentUser.userType
                 } : null,
+                mcpToolsAvailable: mcpCapabilityService.isToolsAvailable(),
+                mcpToolsCount: mcpCapabilityService.getToolDefinitions().length,
                 vscodeVersion: vscode.version,
                 extensionVersion: vscode.extensions.getExtension('alphanetix.alphanetix-code-assistant')?.packageJSON?.version || 'unknown',
                 activeWindows: vscode.window.visibleTextEditors.length,
@@ -218,6 +223,10 @@ function registerCommands(context: vscode.ExtensionContext) {
 
             console.log('🔍 Extension Debug Info:', debugInfo);
 
+            const mcpStatus = debugInfo.mcpToolsAvailable 
+                ? `✅ MCP Tools: ${debugInfo.mcpToolsCount} tools available`
+                : '⚠️ MCP Tools: Disabled (Chat-only mode)';
+
             const message = `Extension Debug Info:
 • Extension Active: ${debugInfo.extensionActive}
 • Authenticated: ${debugInfo.isAuthenticated}
@@ -225,6 +234,7 @@ function registerCommands(context: vscode.ExtensionContext) {
 • Has Refresh Token: ${debugInfo.hasRefreshToken}
 • Auth Token Length: ${debugInfo.authTokenLength}
 • User: ${debugInfo.currentUser?.username || 'None'}
+• ${mcpStatus}
 • VS Code Version: ${debugInfo.vscodeVersion}
 • Extension Version: ${debugInfo.extensionVersion}
 • Active Editors: ${debugInfo.activeWindows}
@@ -373,9 +383,12 @@ function registerCommands(context: vscode.ExtensionContext) {
     context.subscriptions.push(
         vscode.commands.registerCommand('alphanetix.mcpDebug', async () => {
             const mcpService = MCPService.getInstance();
+            const mcpCapabilityService = McpCapabilityService.getInstance();
             const completionService = CompletionService.getInstance();
             
             const mcpInfo = {
+                toolsAvailable: mcpCapabilityService.isToolsAvailable(),
+                toolDefinitionsCount: mcpCapabilityService.getToolDefinitions().length,
                 availableTools: mcpService.getAvailableTools().length,
                 toolStats: mcpService.getToolStats(),
                 recentActions: mcpService.getRecentActions().slice(-5),
@@ -384,7 +397,12 @@ function registerCommands(context: vscode.ExtensionContext) {
 
             console.log('🔧 MCP Debug Info:', mcpInfo);
 
+            const mcpStatus = mcpInfo.toolsAvailable 
+                ? `✅ Enabled (${mcpInfo.toolDefinitionsCount} tools loaded)`
+                : '⚠️ Disabled - Running in chat-only mode';
+
             const message = `MCP Debug Information:
+• Status: ${mcpStatus}
 • Available Tools: ${mcpInfo.availableTools}
 • Tool Usage Stats: ${JSON.stringify(mcpInfo.toolStats, null, 2)}
 • Recent Actions: ${mcpInfo.recentActions.length}
@@ -401,10 +419,18 @@ function registerCommands(context: vscode.ExtensionContext) {
                 if (selection === 'Copy to Clipboard') {
                     vscode.env.clipboard.writeText(JSON.stringify(mcpInfo, null, 2));
                 } else if (selection === 'Show Tools') {
-                    const tools = mcpService.getAvailableTools();
-                    const toolList = tools.map(tool => `${tool.name}: ${tool.description}`).join('\n');
-                    vscode.window.showInformationMessage(`Available MCP Tools:\n${toolList}`);
+                    if (mcpInfo.toolsAvailable) {
+                        const tools = mcpService.getAvailableTools();
+                        const toolList = tools.map(tool => `${tool.name}: ${tool.description}`).join('\n');
+                        vscode.window.showInformationMessage(`Available MCP Tools:\n${toolList}`);
+                    } else {
+                        vscode.window.showWarningMessage('MCP tools are not available. Extension is running in chat-only mode.');
+                    }
                 } else if (selection === 'Test File Tool') {
+                    if (!mcpInfo.toolsAvailable) {
+                        vscode.window.showWarningMessage('MCP tools are not available. Cannot test tools.');
+                        return;
+                    }
                     try {
                         const result = await completionService.executeMCPTool({
                             name: 'get_active_editor',
@@ -415,6 +441,10 @@ function registerCommands(context: vscode.ExtensionContext) {
                         vscode.window.showErrorMessage(`Tool Error: ${error}`);
                     }
                 } else if (selection === 'Test Workspace Tool') {
+                    if (!mcpInfo.toolsAvailable) {
+                        vscode.window.showWarningMessage('MCP tools are not available. Cannot test tools.');
+                        return;
+                    }
                     try {
                         const result = await completionService.executeMCPTool({
                             name: 'get_workspace_info',

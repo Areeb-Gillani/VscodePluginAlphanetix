@@ -5,26 +5,23 @@ import {
     ChatSessionDTO,
     ChatMessageDTO 
 } from '../types';
-import { 
-    MCPAICompletionRequest,
-    MCPAICompletionResponse,
-    MCPToolCall,
-    MCPToolResult
-} from '../mcp/types';
 import { StateManager } from '../state/StateManager';
-import { MCPService } from '../mcp/MCPService';
+import { McpCapabilityService } from './McpCapabilityService';
+import { ToolExecutionService } from './ToolExecutionService';
 
 /**
- * Service for AI completions and chat
+ * Service for AI completions and chat with MCP tool support
  */
 export class CompletionService {
     private static instance: CompletionService;
     private apiClient: ApiClient;
-    private mcpService: MCPService;
+    private mcpCapabilityService: McpCapabilityService;
+    private toolExecutionService: ToolExecutionService;
 
     private constructor() {
         this.apiClient = ApiClient.getInstance();
-        this.mcpService = MCPService.getInstance();
+        this.mcpCapabilityService = McpCapabilityService.getInstance();
+        this.toolExecutionService = ToolExecutionService.getInstance();
     }
 
     public static getInstance(): CompletionService {
@@ -35,7 +32,7 @@ export class CompletionService {
     }
 
     /**
-     * Get AI completion for code or chat with MCP context
+     * Get AI completion with MCP tool support
      */
     public async getCompletion(
         message: string,
@@ -43,10 +40,8 @@ export class CompletionService {
             sessionId?: string;
             modelId?: string;
             estimatedTokens?: number;
-            includeMCPContext?: boolean;
-            includeWorkspaceContext?: boolean;
-            includeActiveFileContext?: boolean;
-            maxContextSize?: number;
+            useMCPTools?: boolean;
+            maxToolIterations?: number;
         }
     ): Promise<AICompletionResponse> {
         const userInfo = await StateManager.getInstance().getUserInfo();
@@ -60,190 +55,103 @@ export class CompletionService {
             modelId = await StateManager.getInstance().getSelectedModel();
         }
 
-        // Enhanced request with MCP context
-        if (options?.includeMCPContext) {
-            return await this.getCompletionWithMCP(message, {
-                sessionId: options.sessionId,
-                modelId,
-                estimatedTokens: options.estimatedTokens,
-                includeWorkspaceContext: options.includeWorkspaceContext ?? false,
-                includeActiveFileContext: options.includeActiveFileContext ?? true,
-                maxContextSize: options.maxContextSize ?? 10000
-            });
-        }
-
+        // Get session mode for tool filtering
+        const sessionMode = await StateManager.getInstance().getSessionMode();
+        const useMCPTools = options?.useMCPTools ?? true;
+        
         // Standard completion request
-        const request: AICompletionRequest = {
+        let request: AICompletionRequest = {
             message,
             chatSessionId: options?.sessionId,
             aiModelId: modelId,
-            estimatedInputTokens: options?.estimatedTokens || Math.ceil(message.length / 4), // Rough estimate: ~4 chars per token
+            estimatedInputTokens: options?.estimatedTokens || Math.ceil(message.length / 4),
         };
 
-        return await this.apiClient.post<AICompletionResponse>(
+        // Fetch and add MCP tools if enabled
+        if (useMCPTools && this.mcpCapabilityService.isToolsAvailable()) {
+            try {
+                // Get available tools for current session and mode
+                const availableTools = await this.mcpCapabilityService.getAvailableTools(
+                    options?.sessionId || '',
+                    '', // agentId - can be empty for now
+                    sessionMode
+                );
+
+                // Transform tools for the current provider
+                const provider = await this.getProviderForModel(modelId);
+                const transformedToolsResponse = await this.mcpCapabilityService.getTransformedTools(
+                    provider,
+                    sessionMode,
+                    availableTools
+                );
+
+                // Extract tools array from response
+                const transformedTools = (transformedToolsResponse as any).tools || [];
+
+                // Add tools to request
+                request.tools = transformedTools;
+                
+                console.log(`🔧 MCP: Sending ${transformedTools.length} tools with request`);
+            } catch (error) {
+                console.warn('🔧 MCP: Failed to fetch tools, continuing without them:', error);
+            }
+        }
+
+        // Send request to backend
+        let response = await this.apiClient.post<AICompletionResponse>(
             '/api/chat/completion',
             request
         );
-    }
 
-    /**
-     * Get AI completion with full MCP context and tool support
-     */
-    public async getCompletionWithMCP(
-        message: string,
-        options: {
-            sessionId?: string;
-            modelId?: string;
-            estimatedTokens?: number;
-            includeWorkspaceContext?: boolean;
-            includeActiveFileContext?: boolean;
-            maxContextSize?: number;
-        }
-    ): Promise<AICompletionResponse> {
-        const userInfo = await StateManager.getInstance().getUserInfo();
-        if (!userInfo || !userInfo.userId) {
-            throw new Error('User not authenticated');
-        }
+        // Handle tool calls - iterate up to maxToolIterations times
+        const maxIterations = options?.maxToolIterations ?? 3;
+        let iteration = 0;
 
-        // Enhance the request with MCP context
-        const enhancedRequest = await this.mcpService.enhanceCompletionRequest(
-            message,
-            options.includeWorkspaceContext ?? false,
-            options.includeActiveFileContext ?? true,
-            options.maxContextSize ?? 10000
-        );
+        while (response.toolCalls && response.toolCalls.length > 0 && iteration < maxIterations) {
+            iteration++;
+            console.log(`🔧 MCP: Tool call iteration ${iteration}/${maxIterations}`);
 
-        // Add standard fields
-        enhancedRequest.chatSessionId = options.sessionId;
-        enhancedRequest.aiModelId = options.modelId;
-        if (options.estimatedTokens) {
-            enhancedRequest.estimatedInputTokens = options.estimatedTokens;
-        }
+            // Execute tool calls
+            const toolResults = await this.toolExecutionService.executeToolCalls(response.toolCalls);
 
-        // Add available tools to the request
-        enhancedRequest.tools = this.mcpService.getAvailableTools();
+            // Send tool results back to LLM
+            request = {
+                message: `Tool execution results:\n${JSON.stringify(toolResults, null, 2)}`,
+                chatSessionId: options?.sessionId,
+                aiModelId: modelId,
+                estimatedInputTokens: Math.ceil(JSON.stringify(toolResults).length / 4),
+                toolResults: toolResults,
+            };
 
-        try {
-            // Send enhanced request to API
-            const response = await this.apiClient.post<MCPAICompletionResponse>(
-                '/api/chat/completion-mcp', // New endpoint for MCP-enabled completions
-                enhancedRequest
+            response = await this.apiClient.post<AICompletionResponse>(
+                '/api/chat/completion',
+                request
             );
-
-            // Process tool calls if the AI wants to use tools
-            if (response.toolCalls && response.toolCalls.length > 0) {
-                const toolResults = await this.mcpService.processToolCalls(response.toolCalls);
-                
-                // If tools were executed, we might want to send a follow-up request
-                // with the tool results to get the final AI response
-                if (toolResults.some(result => !result.isError)) {
-                    return await this.getCompletionWithToolResults(
-                        message,
-                        response,
-                        toolResults,
-                        enhancedRequest
-                    );
-                }
-            }
-
-            // Convert MCP response back to standard response format
-            return this.convertMCPResponseToStandard(response);
-            
-        } catch (error) {
-            // Fallback to standard completion if MCP endpoint fails
-            console.warn('🔧 MCP: Enhanced completion failed, falling back to standard:', error);
-            
-            return await this.getCompletion(message, {
-                sessionId: options.sessionId,
-                modelId: options.modelId,
-                estimatedTokens: options.estimatedTokens,
-                includeMCPContext: false
-            });
         }
+
+        return response;
     }
 
     /**
-     * Send follow-up request with tool results
+     * Get LLM provider name for a model ID
      */
-    private async getCompletionWithToolResults(
-        originalMessage: string,
-        aiResponse: MCPAICompletionResponse,
-        toolResults: MCPToolResult[],
-        originalRequest: MCPAICompletionRequest
-    ): Promise<AICompletionResponse> {
-        // Build follow-up message with tool results
-        const toolResultsText = toolResults.map((result, index) => {
-            const toolCall = aiResponse.toolCalls![index];
-            return `Tool: ${toolCall.name}
-Result: ${result.isError ? 'ERROR' : 'SUCCESS'}
-${result.content?.map(c => c.text).join('\n') || 'No content'}`;
-        }).join('\n\n');
-
-        const followUpMessage = `Original request: ${originalMessage}
-
-Tool execution results:
-${toolResultsText}
-
-Please provide a response based on the tool results.`;
-
-        // Send follow-up request
-        const followUpRequest: MCPAICompletionRequest = {
-            ...originalRequest,
-            message: followUpMessage,
-            estimatedInputTokens: Math.ceil(followUpMessage.length / 4)
-        };
-
-        const followUpResponse = await this.apiClient.post<MCPAICompletionResponse>(
-            '/api/chat/completion-mcp',
-            followUpRequest
-        );
-
-        return this.convertMCPResponseToStandard(followUpResponse);
-    }
-
-    /**
-     * Convert MCP response to standard response format
-     */
-    private convertMCPResponseToStandard(mcpResponse: MCPAICompletionResponse): AICompletionResponse {
-        return {
-            id: mcpResponse.id,
-            object: mcpResponse.object,
-            created: mcpResponse.created,
-            model: mcpResponse.model,
-            message: mcpResponse.message,
-            tokensUsed: mcpResponse.tokensUsed,
-            creditsUsed: mcpResponse.creditsUsed,
-            chatSessionId: mcpResponse.chatSessionId,
-            choices: mcpResponse.choices
-        };
-    }
-
-    /**
-     * Execute MCP tools directly (for testing or manual tool execution)
-     */
-    public async executeMCPTool(toolCall: MCPToolCall): Promise<MCPToolResult> {
-        return await this.mcpService.executeTool(toolCall);
-    }
-
-    /**
-     * Get available MCP tools
-     */
-    public getMCPTools(): any[] {
-        return this.mcpService.getAvailableTools();
-    }
-
-    /**
-     * Get MCP tool usage statistics
-     */
-    public getMCPStats(): { [toolName: string]: number } {
-        return this.mcpService.getToolStats();
-    }
-
-    /**
-     * Get workspace context for debugging
-     */
-    public async getMCPContext(): Promise<any> {
-        return await this.mcpService.getWorkspaceContext();
+    private async getProviderForModel(modelId?: string): Promise<string> {
+        // TODO: Query backend for model provider, for now use simple heuristic
+        if (!modelId) {
+            return 'openai'; // Default
+        }
+        
+        // Simple provider detection based on model name patterns
+        const modelStr = modelId.toLowerCase();
+        if (modelStr.includes('gpt') || modelStr.includes('openai')) {
+            return 'openai';
+        } else if (modelStr.includes('claude') || modelStr.includes('anthropic')) {
+            return 'anthropic';
+        } else if (modelStr.includes('gemini') || modelStr.includes('google')) {
+            return 'gemini';
+        }
+        
+        return 'openai'; // Default fallback
     }
 
     /**
