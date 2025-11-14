@@ -102,13 +102,11 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             // Check if message suggests using MCP features (file operations, workspace analysis)
             const shouldUseMCP = this.shouldUseMCPForMessage(text);
 
-            // Get AI response with or without MCP context
+            // Get AI response with MCP tools enabled
             const response = await this.completionService.getCompletion(text, {
                 sessionId: this.currentSessionId,
-                includeMCPContext: shouldUseMCP,
-                includeWorkspaceContext: shouldUseMCP && this.shouldIncludeWorkspaceContext(text),
-                includeActiveFileContext: shouldUseMCP && this.shouldIncludeActiveFileContext(text),
-                maxContextSize: 15000
+                useMCPTools: shouldUseMCP,
+                maxToolIterations: 3
             });
 
             // Add AI response to history

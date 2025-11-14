@@ -10,6 +10,7 @@ import { MainViewProvider } from './views/MainViewProvider';
 import { CodeActionProvider } from './providers/CodeActionProvider';
 import { MCPService } from './mcp/MCPService';
 import { McpCapabilityService } from './services/McpCapabilityService';
+import { ToolExecutionService } from './services/ToolExecutionService';
 
 let statusBarItem: vscode.StatusBarItem;
 let statusPopupPanel: vscode.WebviewPanel | undefined;
@@ -432,11 +433,13 @@ function registerCommands(context: vscode.ExtensionContext) {
                         return;
                     }
                     try {
-                        const result = await completionService.executeMCPTool({
+                        const toolExecutionService = ToolExecutionService.getInstance();
+                        const result = await toolExecutionService.executeToolCall({
+                            id: 'test_1',
                             name: 'get_active_editor',
                             arguments: { includeContent: false }
                         });
-                        vscode.window.showInformationMessage(`Tool Result: ${result.content?.[0]?.text || 'No content'}`);
+                        vscode.window.showInformationMessage(`Tool Result: ${JSON.stringify(result, null, 2)}`);
                     } catch (error) {
                         vscode.window.showErrorMessage(`Tool Error: ${error}`);
                     }
@@ -446,11 +449,13 @@ function registerCommands(context: vscode.ExtensionContext) {
                         return;
                     }
                     try {
-                        const result = await completionService.executeMCPTool({
+                        const toolExecutionService = ToolExecutionService.getInstance();
+                        const result = await toolExecutionService.executeToolCall({
+                            id: 'test_2',
                             name: 'get_workspace_info',
                             arguments: {}
                         });
-                        vscode.window.showInformationMessage(`Tool Result: ${result.content?.[0]?.text || 'No content'}`);
+                        vscode.window.showInformationMessage(`Tool Result: ${JSON.stringify(result, null, 2)}`);
                     } catch (error) {
                         vscode.window.showErrorMessage(`Tool Error: ${error}`);
                     }
