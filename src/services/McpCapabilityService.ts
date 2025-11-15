@@ -279,7 +279,7 @@ export class McpCapabilityService {
     public async getAvailableTools(
         sessionId: string,
         agentId: string,
-        mode: 'ask' | 'agent'
+        mode: 'ask' | 'agent' | 'ASK' | 'AGENT'
     ): Promise<Map<string, string>> {
         try {
             const apiClient = ApiClient.getInstance();
@@ -300,7 +300,7 @@ export class McpCapabilityService {
      */
     public async getTransformedTools(
         provider: string,
-        mode: 'ask' | 'agent',
+        mode: 'ask' | 'agent' | 'ASK' | 'AGENT',
         toolVersions: Map<string, string>
     ): Promise<TransformedToolsResponse> {
         try {

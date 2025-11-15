@@ -55,8 +55,9 @@ export class CompletionService {
             modelId = await StateManager.getInstance().getSelectedModel();
         }
 
-        // Get session mode for tool filtering
+        // Get session mode for tool filtering (uppercase for backend)
         const sessionMode = await StateManager.getInstance().getSessionMode();
+        const sessionModeUpper = sessionMode.toUpperCase() as 'ASK' | 'AGENT';
         const useMCPTools = options?.useMCPTools ?? true;
         
         // Standard completion request
@@ -69,19 +70,19 @@ export class CompletionService {
 
         // Fetch and add MCP tools if enabled
         if (useMCPTools && this.mcpCapabilityService.isToolsAvailable()) {
-            try {
-                // Get available tools for current session and mode
+             try {
+                // Get available tools for current session and mode (use uppercase for backend)
                 const availableTools = await this.mcpCapabilityService.getAvailableTools(
                     options?.sessionId || '',
                     '', // agentId - can be empty for now
-                    sessionMode
+                    sessionModeUpper
                 );
 
-                // Transform tools for the current provider
+                // Transform tools for the current provider (use uppercase for backend)
                 const provider = await this.getProviderForModel(modelId);
                 const transformedToolsResponse = await this.mcpCapabilityService.getTransformedTools(
                     provider,
-                    sessionMode,
+                    sessionModeUpper,
                     availableTools
                 );
 

@@ -123,6 +123,14 @@ export class StateManager {
         return this.context.globalState.get<'ask' | 'agent'>('alphanetix.sessionMode') || 'agent';
     }
 
+    /**
+     * Get session mode in uppercase for backend API calls
+     */
+    async getSessionModeUpperCase(): Promise<'ASK' | 'AGENT'> {
+        const mode = await this.getSessionMode();
+        return mode.toUpperCase() as 'ASK' | 'AGENT';
+    }
+
     async setSessionMode(mode: 'ask' | 'agent'): Promise<void> {
         await this.context.globalState.update('alphanetix.sessionMode', mode);
     }

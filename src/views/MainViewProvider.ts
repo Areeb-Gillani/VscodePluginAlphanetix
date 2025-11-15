@@ -43,7 +43,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             switch (message.command) {
                 // Chat commands
                 case 'sendMessage':
-                    await this.sendMessage(message.text);
+                    await this.sendMessage(message.text, message.mode);
                     break;
                 case 'newChat':
                     await this.startNewChat();
@@ -66,6 +66,16 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 case 'selectAgent':
                     vscode.commands.executeCommand('alphanetix.selectAgent');
                     break;
+                case 'selectMode': {
+                    // Map Chat -> agent (full tools), Agent -> ask (read-only tools)
+                    // Note: This seems counter-intuitive but 'Chat' mode gives full agent capabilities
+                    // while 'Agent' mode limits to ask/read-only operations for safety
+                    const uiMode = message.mode; // 'Chat' or 'Agent'
+                    const sessionMode: 'ask' | 'agent' = uiMode === 'Agent' ? 'ask' : 'agent';
+                    await StateManager.getInstance().setSessionMode(sessionMode);
+                    console.log(`Mode changed: UI=${uiMode}, Session=${sessionMode}`);
+                    break;
+                }
                 
                 // Settings commands
                 case 'openSettings':
@@ -81,7 +91,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         });
     }
 
-    private async sendMessage(text: string) {
+    private async sendMessage(text: string, mode?: string) {
         if (!text.trim()) {
             return;
         }
@@ -100,7 +110,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             }
 
             // Check if message suggests using MCP features (file operations, workspace analysis)
-            const shouldUseMCP = this.shouldUseMCPForMessage(text);
+            const shouldUseMCP = this.shouldUseMCPForMessage(text, mode);
 
             // Get AI response with MCP tools enabled
             const response = await this.completionService.getCompletion(text, {
@@ -123,18 +133,13 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
     }
 
     /**
-     * Determine if MCP should be used based on message content
+     * Determine if MCP should be used based on message content and mode
+     * Always returns true - mode filtering happens at the tool level
      */
-    private shouldUseMCPForMessage(message: string): boolean {
-        const mcpKeywords = [
-            'file', 'read', 'write', 'create', 'delete', 'search', 'find',
-            'workspace', 'project', 'directory', 'folder', 'code', 'function',
-            'class', 'variable', 'symbol', 'definition', 'references', 'edit',
-            'modify', 'change', 'update', 'analyze', 'explore', 'navigate'
-        ];
-
-        const lowerMessage = message.toLowerCase();
-        return mcpKeywords.some(keyword => lowerMessage.includes(keyword));
+    private shouldUseMCPForMessage(_message: string, _mode?: string): boolean {
+        // Always use MCP tools - mode filtering is handled by the backend
+        // via StateManager.getSessionMode() which filters tools by 'ask' or 'agent' mode
+        return true;
     }
 
     /**
@@ -333,6 +338,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     display: flex;
                     align-items: center;
                     gap: 4px;
+                    position: relative;
                 }
                 .control-label {
                     color: var(--vscode-descriptionForeground);
@@ -370,6 +376,38 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     margin-left: 4px;
                     opacity: 0.5;
                     flex-shrink: 0;
+                }
+                .mode-dropdown {
+                    position: absolute;
+                    top: 100%;
+                    left: 0;
+                    background: var(--vscode-menu-background);
+                    border: 1px solid var(--vscode-menu-border);
+                    border-radius: 0;
+                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.16);
+                    z-index: 1000;
+                    min-width: 120px;
+                    margin-top: 2px;
+                    display: none;
+                }
+                .mode-dropdown.show {
+                    display: block;
+                }
+                .mode-option {
+                    display: flex;
+                    align-items: center;
+                    padding: 6px 12px;
+                    cursor: pointer;
+                    font-size: 11px;
+                    transition: none;
+                }
+                .mode-option:hover {
+                    background: var(--vscode-menu-selectionBackground);
+                    color: var(--vscode-menu-selectionForeground);
+                }
+                .mode-option.selected {
+                    background: var(--vscode-list-activeSelectionBackground);
+                    color: var(--vscode-list-activeSelectionForeground);
                 }
                 .divider {
                     width: 1px;
@@ -554,16 +592,24 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 }
                 .input-container {
                     display: flex;
-                    gap: 6px;
-                    align-items: flex-end;
+                    align-items: center;
+                    background: var(--vscode-input-background);
+                    border: 1px solid var(--vscode-input-border);
+                    border-radius: 2px;
+                    position: relative;
+                }
+                .input-container:focus-within {
+                    outline: 1px solid var(--vscode-focusBorder);
+                    outline-offset: -1px;
                 }
                 .input-field {
                     flex: 1;
-                    background: var(--vscode-input-background);
+                    background: transparent;
                     color: var(--vscode-input-foreground);
-                    border: 1px solid var(--vscode-input-border);
-                    border-radius: 2px;
+                    border: none;
                     padding: 6px 8px;
+                    padding-right: 40px;
+                    padding-bottom: 32px;
                     font-family: var(--vscode-font-family);
                     font-size: 12px;
                     resize: none;
@@ -571,21 +617,24 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     max-height: 100px;
                 }
                 .input-field:focus {
-                    outline: 1px solid var(--vscode-focusBorder);
-                    outline-offset: -1px;
+                    outline: none;
                 }
                 .send-btn {
+                    position: absolute;
+                    right: 4px;
+                    bottom: 4px;
                     background: var(--vscode-button-background);
                     color: var(--vscode-button-foreground);
                     border: none;
-                    padding: 6px 10px;
+                    padding: 5px 8px;
                     border-radius: 2px;
                     cursor: pointer;
                     font-size: 11px;
                     display: flex;
                     align-items: center;
                     justify-content: center;
-                    height: 28px;
+                    height: 24px;
+                    min-width: 24px;
                 }
                 .send-btn:hover {
                     background: var(--vscode-button-hoverBackground);
@@ -671,6 +720,22 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         <body>
             <!-- Header Controls -->
             <div class="header-controls">
+                <div class="control-group">
+                    <span class="control-label">Mode:</span>
+                    <button class="control-selector" onclick="toggleModeDropdown(event)">
+                        <span id="selectedMode">Chat</span>
+                        <svg width="10" height="10" viewBox="0 0 16 16" fill="currentColor">
+                            <path d="M7.247 11.14 2.451 5.658C1.885 5.013 2.345 4 3.204 4h9.592a1 1 0 0 1 .753 1.659l-4.796 5.48a1 1 0 0 1-1.506 0z"/>
+                        </svg>
+                    </button>
+                    
+                    <!-- Mode Dropdown (outside button) -->
+                    <div class="mode-dropdown" id="modeDropdown">
+                        <div class="mode-option selected" onclick="selectMode(event, 'Chat')">Chat</div>
+                        <div class="mode-option" onclick="selectMode(event, 'Agent')">Agent</div>
+                    </div>
+                </div>
+                
                 <div class="control-group">
                     <span class="control-label">Model:</span>
                     <button class="control-selector" onclick="selectModel()">
@@ -804,6 +869,26 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             <script>
                 const vscode = acquireVsCodeApi();
                 
+                // Restore mode state
+                const state = vscode.getState() || {};
+                if (state.chatMode) {
+                    const modeSpan = document.getElementById('selectedMode');
+                    if (modeSpan) {
+                        modeSpan.textContent = state.chatMode;
+                    }
+                    // Update dropdown selection
+                    document.querySelectorAll('.mode-option').forEach(option => {
+                        option.classList.remove('selected');
+                        if (option.textContent === state.chatMode) {
+                            option.classList.add('selected');
+                        }
+                    });
+                } else {
+                    // Default to Chat mode
+                    const newState = { chatMode: 'Chat' };
+                    vscode.setState(newState);
+                }
+                
                 // Tab switching
                 document.querySelectorAll('.tab').forEach(tab => {
                     tab.addEventListener('click', () => {
@@ -863,7 +948,12 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 function sendMessage() {
                     const text = messageInput?.value?.trim();
                     if (text) {
-                        vscode.postMessage({ command: 'sendMessage', text });
+                        const state = vscode.getState() || { chatMode: 'Chat' };
+                        vscode.postMessage({ 
+                            command: 'sendMessage', 
+                            text,
+                            mode: state.chatMode 
+                        });
                         messageInput.value = '';
                         messageInput.style.height = 'auto';
                     }
@@ -901,6 +991,50 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     // Close settings popup if open
                     document.getElementById('settingsPopup').classList.remove('show');
                 }
+
+                function toggleModeDropdown(event) {
+                    event.stopPropagation();
+                    const dropdown = document.getElementById('modeDropdown');
+                    dropdown.classList.toggle('show');
+                }
+
+                function selectMode(event, mode) {
+                    event.stopPropagation();
+                    
+                    // Update selected mode text
+                    const modeSpan = document.getElementById('selectedMode');
+                    modeSpan.textContent = mode;
+                    
+                    // Update dropdown selection state
+                    document.querySelectorAll('.mode-option').forEach(option => {
+                        option.classList.remove('selected');
+                        if (option.textContent === mode) {
+                            option.classList.add('selected');
+                        }
+                    });
+                    
+                    // Store mode in state
+                    const state = vscode.getState() || {};
+                    state.chatMode = mode;
+                    vscode.setState(state);
+                    
+                    // Notify backend of mode change
+                    vscode.postMessage({ command: 'selectMode', mode: mode });
+                    
+                    // Close dropdown
+                    document.getElementById('modeDropdown').classList.remove('show');
+                }
+
+                // Close mode dropdown when clicking outside
+                document.addEventListener('click', (e) => {
+                    const modeDropdown = document.getElementById('modeDropdown');
+                    const controlGroup = e.target.closest('.control-group');
+                    
+                    // Close dropdown if clicking outside the control group
+                    if (modeDropdown && !controlGroup) {
+                        modeDropdown.classList.remove('show');
+                    }
+                });
 
                 // Settings functions
                 function openSettings() {

@@ -11,7 +11,7 @@ export class ApiClient {
     private baseUrl: string;
 
     private constructor() {
-        this.baseUrl = this.getApiUrl();
+        this.baseUrl = this.getBaseUrl();
         this.axiosInstance = axios.create({
             baseURL: this.baseUrl,
             timeout: 30000,
@@ -60,13 +60,13 @@ export class ApiClient {
         return ApiClient.instance;
     }
 
-    private getApiUrl(): string {
+    private getBaseUrl(): string {
         const config = vscode.workspace.getConfiguration('alphanetix');
         return config.get<string>('apiUrl') || 'http://localhost:9100';
     }
 
     public updateBaseUrl(): void {
-        this.baseUrl = this.getApiUrl();
+        this.baseUrl = this.getBaseUrl();
         this.axiosInstance.defaults.baseURL = this.baseUrl;
     }
 
@@ -99,23 +99,29 @@ export class ApiClient {
         return this.axiosInstance;
     }
 
+    public getApiUrl(apiPath: string): string {
+        return `${this.baseUrl}${apiPath}`;
+    }
+
+
+
     public async get<T>(url: string, params?: any): Promise<T> {
-        const response = await this.axiosInstance.get<T>(url, { params });
+        const response = await this.axiosInstance.get<T>(this.getApiUrl(url), { params });
         return response.data;
     }
 
     public async post<T>(url: string, data?: any, params?: any): Promise<T> {
-        const response = await this.axiosInstance.post<T>(url, data, { params });
+        const response = await this.axiosInstance.post<T>(this.getApiUrl(url), data, { params });
         return response.data;
     }
 
     public async put<T>(url: string, data?: any, params?: any): Promise<T> {
-        const response = await this.axiosInstance.put<T>(url, data, { params });
+        const response = await this.axiosInstance.put<T>(this.getApiUrl(url), data, { params });
         return response.data;
     }
 
     public async delete<T>(url: string, params?: any): Promise<T> {
-        const response = await this.axiosInstance.delete<T>(url, { params });
+        const response = await this.axiosInstance.delete<T>(this.getApiUrl(url), { params });
         return response.data;
     }
 }
