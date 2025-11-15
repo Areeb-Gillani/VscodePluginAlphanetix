@@ -79,6 +79,7 @@ export class McpCapabilityService {
     private toolDefinitions: ToolDefinition[] = [];
     private extensionVersion: string;
     private registeredCapabilities: Map<string, CapabilityRegistrationResponse> = new Map();
+    private toolIntersectionCache: Map<string, Map<string, string>> = new Map();
 
     private constructor() {
         this.extensionVersion = this.getExtensionVersion();
@@ -275,20 +276,38 @@ export class McpCapabilityService {
 
     /**
      * Get tool intersection for a session (tools available in both client and agent)
+     * Results are cached per session-mode combination
      */
     public async getAvailableTools(
         sessionId: string,
         agentId: string,
         mode: 'ask' | 'agent' | 'ASK' | 'AGENT'
     ): Promise<Map<string, string>> {
+        // Create cache key combining sessionId and mode
+        const cacheKey = `${sessionId}_${mode}`;
+        
+        // Check if already cached for this session and mode
+        if (this.toolIntersectionCache.has(cacheKey)) {
+            console.log(`🔧 McpCapability: Using cached tool intersection for session ${sessionId}, mode ${mode}`);
+            return this.toolIntersectionCache.get(cacheKey)!;
+        }
+
         try {
             const apiClient = ApiClient.getInstance();
+            console.log(`🔧 McpCapability: Fetching tool intersection for session ${sessionId}, mode ${mode}`);
+            
             const response = await apiClient.get<Record<string, string>>(
                 `/api/mcp/capabilities/intersection`,
                 { sessionId, agentId, mode }
             );
 
-            return new Map(Object.entries(response));
+            const toolsMap = new Map(Object.entries(response));
+            
+            // Cache the result
+            this.toolIntersectionCache.set(cacheKey, toolsMap);
+            console.log(`🔧 McpCapability: Cached ${toolsMap.size} tools for session ${sessionId}, mode ${mode}`);
+
+            return toolsMap;
         } catch (error) {
             console.error('🔧 McpCapability: Failed to get tool intersection:', error);
             throw error;
@@ -356,10 +375,33 @@ export class McpCapabilityService {
     }
 
     /**
-     * Clear registered capabilities (for testing or re-initialization)
+     * Clear registered capabilities and tool intersection cache (for testing or re-initialization)
      */
     public clearRegistrations(): void {
         this.registeredCapabilities.clear();
-        console.log('🔧 McpCapability: Cleared all registrations');
+        this.toolIntersectionCache.clear();
+        console.log('🔧 McpCapability: Cleared all registrations and tool intersection cache');
+    }
+
+    /**
+     * Clear cache for a specific session
+     */
+    public clearSessionCache(sessionId: string): void {
+        // Remove capability registration
+        this.registeredCapabilities.delete(sessionId);
+        
+        // Remove all tool intersection cache entries for this session
+        const keysToDelete: string[] = [];
+        for (const key of this.toolIntersectionCache.keys()) {
+            if (key.startsWith(`${sessionId}_`)) {
+                keysToDelete.push(key);
+            }
+        }
+        
+        for (const key of keysToDelete) {
+            this.toolIntersectionCache.delete(key);
+        }
+        
+        console.log(`🔧 McpCapability: Cleared cache for session ${sessionId}`);
     }
 }

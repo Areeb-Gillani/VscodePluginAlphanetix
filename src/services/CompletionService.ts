@@ -70,7 +70,12 @@ export class CompletionService {
 
         // Fetch and add MCP tools if enabled
         if (useMCPTools && this.mcpCapabilityService.isToolsAvailable()) {
-             try {
+            try {
+                // Ensure capabilities are registered for this session
+                if (options?.sessionId) {
+                    await this.mcpCapabilityService.registerCapabilities(options.sessionId);
+                }
+
                 // Get available tools for current session and mode (use uppercase for backend)
                 const availableTools = await this.mcpCapabilityService.getAvailableTools(
                     options?.sessionId || '',
@@ -173,7 +178,7 @@ export class CompletionService {
         const teamId = options?.teamId || await StateManager.getInstance().getSelectedTeam();
         const modelId = options?.modelId || await StateManager.getInstance().getSelectedModel();
 
-        return await this.apiClient.post<ChatSessionDTO>(
+        const session = await this.apiClient.post<ChatSessionDTO>(
             '/api/chat/sessions',
             userInfo.userId,
             {
@@ -183,6 +188,19 @@ export class CompletionService {
                 systemPrompt: options?.systemPrompt,
             }
         );
+
+        // Register MCP capabilities for this session if tools are available
+        if (this.mcpCapabilityService.isToolsAvailable()) {
+            try {
+                await this.mcpCapabilityService.registerCapabilities(session.id);
+                console.log(`🔧 MCP: Registered capabilities for new session ${session.id}`);
+            } catch (error) {
+                console.warn(`🔧 MCP: Failed to register capabilities for session ${session.id}:`, error);
+                // Don't throw - allow session to continue without MCP tools
+            }
+        }
+
+        return session;
     }
 
     /**

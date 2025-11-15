@@ -71,7 +71,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     // Note: This seems counter-intuitive but 'Chat' mode gives full agent capabilities
                     // while 'Agent' mode limits to ask/read-only operations for safety
                     const uiMode = message.mode; // 'Chat' or 'Agent'
-                    const sessionMode: 'ask' | 'agent' = uiMode === 'Agent' ? 'ask' : 'agent';
+                    const sessionMode: 'ask' | 'agent' = uiMode === 'Agent' ?  'agent': 'ask';
                     await StateManager.getInstance().setSessionMode(sessionMode);
                     console.log(`Mode changed: UI=${uiMode}, Session=${sessionMode}`);
                     break;
