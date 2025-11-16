@@ -1,4 +1,4 @@
-import axios, { AxiosInstance, AxiosError } from 'axios';
+import axios, { AxiosInstance, AxiosError, AxiosRequestConfig } from 'axios';
 import * as vscode from 'vscode';
 import { StateManager } from '../state/StateManager';
 
@@ -111,7 +111,13 @@ export class ApiClient {
     }
 
     public async post<T>(url: string, data?: any, params?: any): Promise<T> {
-        const response = await this.axiosInstance.post<T>(this.getApiUrl(url), data, { params });
+        // Set longer timeout for AI completion endpoint (5 minutes)
+        const config: AxiosRequestConfig = { params };
+        if (url === '/api/chat/completion') {
+            config.timeout = 300000; // 5 minutes for AI responses
+        }
+        
+        const response = await this.axiosInstance.post<T>(this.getApiUrl(url), data, config);
         return response.data;
     }
 
