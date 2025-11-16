@@ -1,6 +1,7 @@
 import * as vscode from 'vscode';
 import { ExecutorRegistry } from '../mcp/executors/ExecutorRegistry';
 import { StateManager } from '../state/StateManager';
+import { ApiClient } from '../api/ApiClient';
 
 /**
  * Tool call in OpenAI format
@@ -68,10 +69,12 @@ export class ToolExecutionService {
     private static instance: ToolExecutionService;
     private registry: ExecutorRegistry;
     private stateManager: StateManager;
+    private apiClient: ApiClient;
 
     private constructor() {
         this.registry = ExecutorRegistry.getInstance();
         this.stateManager = StateManager.getInstance();
+        this.apiClient = ApiClient.getInstance();
     }
 
     public static getInstance(): ToolExecutionService {
@@ -225,6 +228,12 @@ export class ToolExecutionService {
                 throw new Error(`Tool definition not found: ${call.name}`);
             }
 
+            // Check if user confirmation is needed for high-risk operations
+            const confirmed = await this.checkUserConfirmation(call.name, toolDefinition, call.arguments);
+            if (!confirmed) {
+                throw new Error('Operation cancelled by user');
+            }
+
             // Build execution context based on BaseExecutor's ExecutionContext interface
             const context = {
                 toolName: call.name,
@@ -241,6 +250,19 @@ export class ToolExecutionService {
 
             console.log(`✅ ToolExecution: ${call.name} completed in ${executionTime}ms`);
 
+            // Log execution to backend (async, fire-and-forget)
+            this.logExecutionToBackend(
+                sessionId,
+                call.name,
+                toolDefinition.version,
+                mode,
+                call.arguments,
+                result,
+                'SUCCESS',
+                null,
+                executionTime
+            ).catch(err => console.warn('Failed to log execution:', err));
+
             return {
                 toolCallId: call.id,
                 toolName: call.name,
@@ -252,8 +274,28 @@ export class ToolExecutionService {
         } catch (error) {
             const executionTime = Date.now() - startTime;
             const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+            const errorStack = error instanceof Error ? error.stack : undefined;
 
             console.error(`❌ ToolExecution: ${call.name} failed:`, errorMessage);
+
+            // Log execution failure to backend (async, fire-and-forget)
+            const sessionId = await this.stateManager.getCurrentSessionId();
+            const toolDefinition = this.registry.getToolDefinition(call.name);
+            const mode = await this.stateManager.getSessionMode();
+            
+            if (sessionId && toolDefinition) {
+                this.logExecutionToBackend(
+                    sessionId,
+                    call.name,
+                    toolDefinition.version,
+                    mode,
+                    call.arguments,
+                    null,
+                    'ERROR',
+                    { message: errorMessage, stack: errorStack },
+                    executionTime
+                ).catch(err => console.warn('Failed to log execution:', err));
+            }
 
             return {
                 toolCallId: call.id,
@@ -339,5 +381,92 @@ export class ToolExecutionService {
     public hasToolCalls(response: unknown, provider: 'openai' | 'anthropic' | 'gemini'): boolean {
         const parsed = this.parseToolCalls(response, provider);
         return parsed !== null && parsed.calls.length > 0;
+    }
+
+    /**
+     * Check if user confirmation is needed and prompt if required
+     * Returns true if operation should proceed, false if cancelled
+     */
+    private async checkUserConfirmation(
+        toolName: string,
+        toolDefinition: any,
+        args: Record<string, unknown>
+    ): Promise<boolean> {
+        // Check risk level - only prompt for high-risk operations
+        const riskLevel = toolDefinition.risk_level || 'low';
+        
+        if (riskLevel !== 'high') {
+            return true; // No confirmation needed for low/medium risk
+        }
+
+        // Build confirmation message based on tool type
+        let message = `⚠️ The AI wants to execute a high-risk operation:\n\n`;
+        let details = '';
+
+        switch (toolName) {
+            case 'write_file':
+                details = `Write to file: ${args.path}\nContent length: ${(args.content as string)?.length || 0} chars`;
+                break;
+            case 'delete_file':
+                details = `Delete file: ${args.path}`;
+                break;
+            case 'bash':
+                details = `Execute command: ${args.command}`;
+                break;
+            case 'multi_edit':
+                details = `Edit multiple files: ${(args.edits as any[])?.length || 0} files`;
+                break;
+            default:
+                details = `Tool: ${toolName}`;
+        }
+
+        message += `${details}\n\nDo you want to allow this operation?`;
+
+        const choice = await vscode.window.showWarningMessage(
+            message,
+            { modal: true },
+            'Allow',
+            'Cancel'
+        );
+
+        return choice === 'Allow';
+    }
+
+    /**
+     * Log tool execution to backend (async, fire-and-forget)
+     */
+    private async logExecutionToBackend(
+        sessionId: string,
+        toolName: string,
+        toolVersion: string,
+        mode: 'ask' | 'agent',
+        inputParams: Record<string, unknown>,
+        outputResult: unknown,
+        status: 'SUCCESS' | 'ERROR',
+        errorDetails: { message?: string; stack?: string } | null,
+        executionDurationMs: number
+    ): Promise<void> {
+        try {
+            const modeUpper = mode.toUpperCase();
+            
+            await this.apiClient.post(
+                `/api/mcp/executions/log?sessionId=${sessionId}`,
+                {
+                    toolName,
+                    toolVersion,
+                    mode: modeUpper,
+                    inputParams,
+                    outputResult: outputResult ? { data: outputResult } : null,
+                    status,
+                    errorDetails,
+                    executionDurationMs
+                }
+            );
+
+            console.log(`📊 Logged execution: ${toolName} (${status}) to backend`);
+        } catch (error) {
+            // Log but don't throw - logging failures shouldn't break tool execution
+            console.warn('⚠️ Failed to log execution to backend:', error);
+        }
     }
 }

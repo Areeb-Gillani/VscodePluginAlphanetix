@@ -76,10 +76,17 @@ export class CompletionService {
                     await this.mcpCapabilityService.registerCapabilities(options.sessionId);
                 }
 
+                // Get selected agent ID
+                const agentId = await StateManager.getInstance().getSelectedAgent();
+                if (!agentId) {
+                    console.warn('🔧 MCP: No agent selected, skipping tool intersection');
+                    throw new Error('No agent selected for tool intersection');
+                }
+
                 // Get available tools for current session and mode (use uppercase for backend)
                 const availableTools = await this.mcpCapabilityService.getAvailableTools(
                     options?.sessionId || '',
-                    '', // agentId - can be empty for now
+                    agentId,
                     sessionModeUpper
                 );
 
@@ -166,26 +173,27 @@ export class CompletionService {
     public async createChatSession(options?: {
         teamId?: string;
         modelId?: string;
+        agentId?: string;
         sessionName?: string;
-        systemPrompt?: string;
     }): Promise<ChatSessionDTO> {
         const userInfo = await StateManager.getInstance().getUserInfo();
         if (!userInfo || !userInfo.userId) {
             throw new Error('User not authenticated');
         }
 
-        // Use selected team/model if not specified
+        // Use selected team/model/agent if not specified
         const teamId = options?.teamId || await StateManager.getInstance().getSelectedTeam();
         const modelId = options?.modelId || await StateManager.getInstance().getSelectedModel();
+        const agentId = options?.agentId || await StateManager.getInstance().getSelectedAgent();
 
         const session = await this.apiClient.post<ChatSessionDTO>(
             '/api/chat/sessions',
-            userInfo.userId,
+            {},
             {
                 teamId,
                 modelId,
+                agentId,
                 sessionName: options?.sessionName,
-                systemPrompt: options?.systemPrompt,
             }
         );
 
