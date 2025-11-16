@@ -114,6 +114,8 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     sessionName: 'VS Code Chat',
                 });
                 this.currentSessionId = session.id;
+                // Save session ID to StateManager so tools can access it
+                await StateManager.getInstance().setCurrentSessionId(session.id);
             }
 
             // Check if message suggests using MCP features (file operations, workspace analysis)
@@ -178,6 +180,8 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
     private async startNewChat() {
         this.currentSessionId = undefined;
         this.chatHistory = [];
+        // Clear session ID from StateManager
+        await StateManager.getInstance().clearCurrentSessionId();
         this.updateView();
     }
 

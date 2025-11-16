@@ -4,7 +4,7 @@ import { StateManager } from '../state/StateManager';
 import { ApiClient } from '../api/ApiClient';
 
 /**
- * Tool call in OpenAI format
+ * Tool call in OpenAI format (actual structure from API)
  */
 export interface OpenAIToolCall {
     id: string;
@@ -34,7 +34,7 @@ export interface GeminiFunctionCall {
 }
 
 /**
- * Generic tool call representation
+ * Generic tool call representation (flattened for internal use)
  */
 export interface GenericToolCall {
     id: string;

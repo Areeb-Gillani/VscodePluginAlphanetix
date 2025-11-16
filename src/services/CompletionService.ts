@@ -124,8 +124,26 @@ export class CompletionService {
             iteration++;
             console.log(`🔧 MCP: Tool call iteration ${iteration}/${maxIterations}`);
 
+            // Parse tool calls from OpenAI format to GenericToolCall format
+            const genericToolCalls = response.toolCalls.map((tc: any) => {
+                // Handle both OpenAI format (with nested function) and already-parsed format
+                if (tc.function) {
+                    // OpenAI format: {id, type: "function", function: {name, arguments}}
+                    return {
+                        id: tc.id,
+                        name: tc.function.name,
+                        arguments: typeof tc.function.arguments === 'string' 
+                            ? JSON.parse(tc.function.arguments)
+                            : tc.function.arguments
+                    };
+                } else {
+                    // Already in generic format: {id, name, arguments}
+                    return tc;
+                }
+            });
+
             // Execute tool calls
-            const toolResults = await this.toolExecutionService.executeToolCalls(response.toolCalls);
+            const toolResults = await this.toolExecutionService.executeToolCalls(genericToolCalls);
 
             // Send tool results back to LLM
             request = {

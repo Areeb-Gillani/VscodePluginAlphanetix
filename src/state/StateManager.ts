@@ -63,7 +63,7 @@ export class StateManager {
 
     async getUserId(): Promise<string | undefined> {
         const userInfo = await this.getUserInfo();
-        return userInfo?.id;
+        return userInfo?.userId; // Changed from 'id' to 'userId' to match setUserInfo() calls
     }
 
     // Selected Team
