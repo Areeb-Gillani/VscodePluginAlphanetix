@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { marked } from 'marked';
 import { CompletionService } from '../services/CompletionService';
 import { StateManager } from '../state/StateManager';
 
@@ -13,6 +14,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     constructor(private readonly _extensionUri: vscode.Uri) {
         this.completionService = CompletionService.getInstance();
+        
+        // Configure marked for better code highlighting
+        marked.setOptions({
+            breaks: true,
+            gfm: true,
+        });
     }
 
     public resolveWebviewView(
@@ -89,6 +96,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private async updateView() {
+
         if (!this._view) {
             return;
         }
@@ -118,10 +126,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             .map((msg) => {
                 const isUser = msg.role === 'user';
                 const isError = msg.role === 'error';
+                const formattedContent = isUser ? this.escapeHtml(msg.content).replace(/\n/g, '<br>') : this.formatMessageContent(msg.content);
                 return `
                 <div class="message ${isUser ? 'user-message' : isError ? 'error-message' : 'ai-message'}">
                     <div class="message-header">${isUser ? '👤 You' : isError ? '⚠️ Error' : '🤖 Alphanetix AI'}</div>
-                    <div class="message-content">${this.escapeHtml(msg.content).replace(/\n/g, '<br>')}</div>
+                    <div class="message-content">${formattedContent}</div>
                 </div>
             `;
             })
@@ -173,6 +182,83 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 .message-content {
                     font-size: 13px;
                     line-height: 1.5;
+                }
+                /* Markdown styling */
+                .message-content h1, .message-content h2, .message-content h3,
+                .message-content h4, .message-content h5, .message-content h6 {
+                    margin: 10px 0 5px 0;
+                    font-weight: bold;
+                }
+                .message-content h1 { font-size: 18px; }
+                .message-content h2 { font-size: 16px; }
+                .message-content h3 { font-size: 14px; }
+                .message-content p {
+                    margin: 8px 0;
+                }
+                .message-content ul, .message-content ol {
+                    margin: 8px 0;
+                    padding-left: 20px;
+                }
+                .message-content li {
+                    margin: 4px 0;
+                }
+                .message-content pre {
+                    background: var(--vscode-textCodeBlock-background);
+                    border: 1px solid var(--vscode-panel-border);
+                    border-radius: 4px;
+                    padding: 12px;
+                    margin: 8px 0;
+                    overflow-x: auto;
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: 12px;
+                }
+                .message-content code {
+                    background: var(--vscode-textCodeBlock-background);
+                    padding: 2px 6px;
+                    border-radius: 3px;
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: 12px;
+                }
+                .message-content pre code {
+                    background: none;
+                    padding: 0;
+                }
+                .message-content blockquote {
+                    border-left: 3px solid var(--vscode-textLink-foreground);
+                    padding-left: 12px;
+                    margin: 8px 0;
+                    color: var(--vscode-descriptionForeground);
+                }
+                .message-content table {
+                    border-collapse: collapse;
+                    margin: 8px 0;
+                    width: 100%;
+                }
+                .message-content table th,
+                .message-content table td {
+                    border: 1px solid var(--vscode-panel-border);
+                    padding: 6px 12px;
+                    text-align: left;
+                }
+                .message-content table th {
+                    background: var(--vscode-editor-background);
+                    font-weight: bold;
+                }
+                .message-content a {
+                    color: var(--vscode-textLink-foreground);
+                    text-decoration: none;
+                }
+                .message-content a:hover {
+                    text-decoration: underline;
+                }
+                .message-content hr {
+                    border: none;
+                    border-top: 1px solid var(--vscode-panel-border);
+                    margin: 12px 0;
+                }
+                .message-content img {
+                    max-width: 100%;
+                    height: auto;
                 }
                 .input-container {
                     padding: 10px 0;
@@ -277,6 +363,24 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             </script>
         </body>
         </html>`;
+    }
+
+    private formatMessageContent(content: string): string {
+        try {
+            // Use marked() directly which is synchronous
+            const htmlContent = marked(content) as string;
+            
+            // Debug: Log to verify markdown processing
+            console.log('Markdown input:', content.substring(0, 100));
+            console.log('HTML output:', htmlContent.substring(0, 100));
+            
+            // Return the parsed HTML (marked already escapes dangerous content)
+            return htmlContent;
+        } catch (error) {
+            // Fallback to escaped text with line breaks if markdown parsing fails
+            console.error('Error parsing markdown:', error);
+            return this.escapeHtml(content).replace(/\n/g, '<br>');
+        }
     }
 
     private escapeHtml(text: string): string {

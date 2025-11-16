@@ -1,4 +1,6 @@
 import * as vscode from 'vscode';
+import { marked } from 'marked';
+import hljs from 'highlight.js';
 import { CompletionService } from '../services/CompletionService';
 import { UserService } from '../services/UserService';
 import { TeamService } from '../services/TeamService';
@@ -22,6 +24,11 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         this.userService = UserService.getInstance();
         this.teamService = TeamService.getInstance();
         this.modelService = ModelService.getInstance();
+        
+        // Listen for theme changes
+        vscode.window.onDidChangeActiveColorTheme(() => {
+            this.updateView();
+        });
     }
 
     public resolveWebviewView(
@@ -297,11 +304,15 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             .map((msg) => {
                 const isUser = msg.role === 'user';
                 const isError = msg.role === 'error';
+                // Use markdown for AI messages, escape HTML for user messages
+                const formattedContent = isUser || isError 
+                    ? this.escapeHtml(msg.content).replace(/\n/g, '<br>')
+                    : this.formatMarkdown(msg.content);
                 return `
                 <div class="message ${isUser ? 'user-message' : isError ? 'error-message' : 'ai-message'}">
                     <div class="message-bubble">
                         <div class="message-header">${isUser ? 'You' : isError ? 'Error' : 'Alphanetix'}</div>
-                        <div class="message-content">${this.escapeHtml(msg.content).replace(/\n/g, '<br>')}</div>
+                        <div class="message-content">${formattedContent}</div>
                     </div>
                 </div>
             `;
@@ -584,6 +595,93 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     font-size: 12px;
                     line-height: 1.5;
                     color: var(--vscode-foreground);
+                }
+                /* Markdown styling */
+                .message-content h1, .message-content h2, .message-content h3,
+                .message-content h4, .message-content h5, .message-content h6 {
+                    margin: 10px 0 5px 0;
+                    font-weight: bold;
+                }
+                .message-content h1 { font-size: 16px; }
+                .message-content h2 { font-size: 14px; }
+                .message-content h3 { font-size: 13px; }
+                .message-content p {
+                    margin: 6px 0;
+                }
+                .message-content ul, .message-content ol {
+                    margin: 6px 0;
+                    padding-left: 20px;
+                }
+                .message-content li {
+                    margin: 3px 0;
+                }
+                .message-content pre {
+                    background: var(--vscode-textCodeBlock-background);
+                    border: 1px solid var(--vscode-panel-border);
+                    border-radius: 3px;
+                    padding: 10px;
+                    margin: 6px 0;
+                    overflow-x: auto;
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: 11px;
+                }
+                .message-content code {
+                    background: var(--vscode-textCodeBlock-background);
+                    padding: 2px 5px;
+                    border-radius: 2px;
+                    font-family: var(--vscode-editor-font-family);
+                    font-size: 11px;
+                }
+                .message-content pre code {
+                    background: none;
+                    padding: 0;
+                }
+                .message-content blockquote {
+                    border-left: 3px solid var(--vscode-textLink-foreground);
+                    padding-left: 10px;
+                    margin: 6px 0;
+                    opacity: 0.8;
+                }
+                .message-content table {
+                    border-collapse: collapse;
+                    margin: 6px 0;
+                    width: 100%;
+                    font-size: 11px;
+                }
+                .message-content table th,
+                .message-content table td {
+                    border: 1px solid var(--vscode-panel-border);
+                    padding: 4px 8px;
+                    text-align: left;
+                }
+                .message-content table th {
+                    background: var(--vscode-editor-background);
+                    font-weight: bold;
+                }
+                .message-content a {
+                    color: var(--vscode-textLink-foreground);
+                    text-decoration: none;
+                }
+                .message-content a:hover {
+                    text-decoration: underline;
+                }
+                .message-content hr {
+                    border: none;
+                    border-top: 1px solid var(--vscode-panel-border);
+                    margin: 10px 0;
+                }
+                /* Syntax highlighting - dynamically generated from active theme */
+                .hljs {
+                    display: block;
+                    overflow-x: auto;
+                    color: var(--vscode-editor-foreground);
+                }
+                ${this.getThemeColors()}
+                .hljs-doctag, .hljs-strong {
+                    font-weight: bold;
+                }
+                .hljs-emphasis {
+                    font-style: italic;
                 }
                 .input-area {
                     padding: 8px 12px;
@@ -1051,6 +1149,103 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             </script>
         </body>
         </html>`;
+    }
+
+    private formatMarkdown(content: string): string {
+        try {
+            // Create a custom renderer for code blocks with syntax highlighting
+            const renderer = new marked.Renderer();
+            
+            renderer.code = function({ text, lang }: { text: string; lang?: string }) {
+                if (lang && hljs.getLanguage(lang)) {
+                    try {
+                        const highlighted = hljs.highlight(text, { language: lang }).value;
+                        return `<pre><code class="hljs language-${lang}">${highlighted}</code></pre>`;
+                    } catch (err) {
+                        console.error('Highlight error:', err);
+                    }
+                }
+                // Fallback to auto-detect
+                try {
+                    const highlighted = hljs.highlightAuto(text).value;
+                    return `<pre><code class="hljs">${highlighted}</code></pre>`;
+                } catch (err) {
+                    // Last resort: return escaped text
+                    const escaped = text.replace(/</g, '&lt;').replace(/>/g, '&gt;');
+                    return `<pre><code>${escaped}</code></pre>`;
+                }
+            };
+            
+            // Configure marked
+            marked.setOptions({
+                breaks: true,
+                gfm: true,
+                renderer: renderer
+            });
+            
+            // Parse markdown to HTML
+            return marked(content) as string;
+        } catch (error) {
+            console.error('Error parsing markdown:', error);
+            return this.escapeHtml(content).replace(/\n/g, '<br>');
+        }
+    }
+
+    private getThemeColors(): string {
+        // Get theme colors from VS Code's active color theme
+        const colorTheme = vscode.window.activeColorTheme;
+        const isDark = colorTheme.kind === vscode.ColorThemeKind.Dark || 
+                      colorTheme.kind === vscode.ColorThemeKind.HighContrast;
+        
+        // Get editor colors from workspace configuration
+        const tokenColorCustomizations = vscode.workspace.getConfiguration('editor.tokenColorCustomizations');
+        
+        // Default colors based on theme kind
+        const colors = {
+            keyword: isDark ? '#569cd6' : '#0000ff',
+            string: isDark ? '#ce9178' : '#a31515', 
+            number: isDark ? '#b5cea8' : '#098658',
+            type: isDark ? '#4ec9b0' : '#267f99',
+            variable: isDark ? '#9cdcfe' : '#001080',
+            function: isDark ? '#dcdcaa' : '#795e26',
+            comment: isDark ? '#6a9955' : '#008000',
+            operator: isDark ? '#d4d4d4' : '#000000',
+        };
+
+        // Try to get custom token colors if they exist
+        try {
+            const textMateRules = tokenColorCustomizations.get<Array<{scope: string | string[], settings: {foreground?: string}}>>('textMateRules');
+            if (textMateRules && Array.isArray(textMateRules)) {
+                textMateRules.forEach((rule) => {
+                    const scope = rule.scope;
+                    const settings = rule.settings;
+                    if (!settings?.foreground) return;
+                    
+                    if (typeof scope === 'string') {
+                        if (scope.includes('keyword')) colors.keyword = settings.foreground;
+                        if (scope.includes('string')) colors.string = settings.foreground;
+                        if (scope.includes('number') || scope.includes('constant.numeric')) colors.number = settings.foreground;
+                        if (scope.includes('entity.name.type') || scope.includes('support.type')) colors.type = settings.foreground;
+                        if (scope.includes('variable')) colors.variable = settings.foreground;
+                        if (scope.includes('entity.name.function') || scope.includes('support.function')) colors.function = settings.foreground;
+                        if (scope.includes('comment')) colors.comment = settings.foreground;
+                    }
+                });
+            }
+        } catch (err) {
+            console.log('Could not read token color customizations:', err);
+        }
+
+        return `
+            .hljs-keyword, .hljs-selector-tag, .hljs-literal, .hljs-built_in { color: ${colors.keyword}; }
+            .hljs-string, .hljs-attr { color: ${colors.string}; }
+            .hljs-number, .hljs-regexp, .hljs-addition { color: ${colors.number}; }
+            .hljs-type, .hljs-class .hljs-title, .hljs-builtin-name { color: ${colors.type}; }
+            .hljs-variable, .hljs-template-variable, .hljs-selector-attr { color: ${colors.variable}; }
+            .hljs-title, .hljs-function, .hljs-name { color: ${colors.function}; }
+            .hljs-comment, .hljs-quote, .hljs-deletion, .hljs-meta { color: ${colors.comment}; font-style: italic; }
+            .hljs-operator, .hljs-params, .hljs-symbol { color: ${colors.operator}; }
+        `;
     }
 
     private escapeHtml(text: string): string {
