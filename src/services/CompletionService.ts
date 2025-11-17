@@ -8,6 +8,7 @@ import {
 import { StateManager } from '../state/StateManager';
 import { McpCapabilityService } from './McpCapabilityService';
 import { ToolExecutionService } from './ToolExecutionService';
+import { WorkspaceContextService } from './WorkspaceContextService';
 
 /**
  * Service for AI completions and chat with MCP tool support
@@ -17,11 +18,13 @@ export class CompletionService {
     private apiClient: ApiClient;
     private mcpCapabilityService: McpCapabilityService;
     private toolExecutionService: ToolExecutionService;
+    private workspaceContextService: WorkspaceContextService;
 
     private constructor() {
         this.apiClient = ApiClient.getInstance();
         this.mcpCapabilityService = McpCapabilityService.getInstance();
         this.toolExecutionService = ToolExecutionService.getInstance();
+        this.workspaceContextService = WorkspaceContextService.getInstance();
     }
 
     public static getInstance(): CompletionService {
@@ -193,109 +196,183 @@ export class CompletionService {
         const sessionModeUpper = sessionMode.toUpperCase() as 'ASK' | 'AGENT';
         const useMCPTools = options?.useMCPTools ?? true;
         
-        // Standard completion request with stream=true
-        const request: AICompletionRequest = {
-            message,
-            chatSessionId: options?.sessionId,
-            aiModelId: modelId,
-            estimatedInputTokens: options?.estimatedTokens || Math.ceil(message.length / 4),
-            stream: true,
-        };
+        // Tool execution iteration loop
+        const maxIterations = options?.maxToolIterations ?? 3;
+        let iteration = 0;
+        let currentMessage = message;
+        let fullMessage = '';
+        let totalTokens = 0;
+        let totalCredits = 0;
+        
+        while (iteration < maxIterations) {
+            iteration++;
+            console.log(`🔄 Streaming iteration ${iteration}/${maxIterations}`);
+            
+            // Standard completion request with stream=true
+            const request: AICompletionRequest = {
+                message: currentMessage,
+                chatSessionId: options?.sessionId,
+                aiModelId: modelId,
+                estimatedInputTokens: options?.estimatedTokens || Math.ceil(currentMessage.length / 4),
+                stream: true,
+            };
 
-        // Fetch and add MCP tools if enabled
-        if (useMCPTools && this.mcpCapabilityService.isToolsAvailable()) {
-            try {
-                // Ensure capabilities are registered for this session
-                if (options?.sessionId) {
-                    await this.mcpCapabilityService.registerCapabilities(options.sessionId);
+            // Fetch and add MCP tools if enabled (only on first iteration)
+            if (iteration === 1 && useMCPTools && this.mcpCapabilityService.isToolsAvailable()) {
+                try {
+                    // Ensure capabilities are registered for this session
+                    if (options?.sessionId) {
+                        await this.mcpCapabilityService.registerCapabilities(options.sessionId);
+                    }
+
+                    // Get selected agent ID
+                    const agentId = await StateManager.getInstance().getSelectedAgent();
+                    if (!agentId) {
+                        console.warn('🔧 MCP: No agent selected, skipping tool intersection');
+                        throw new Error('No agent selected for tool intersection');
+                    }
+
+                    // Get available tools for current session and mode
+                    const availableTools = await this.mcpCapabilityService.getAvailableTools(
+                        options?.sessionId || '',
+                        agentId,
+                        sessionModeUpper
+                    );
+
+                    // Transform tools for the current provider
+                    const provider = await this.getProviderForModel(modelId);
+                    const transformedToolsResponse = await this.mcpCapabilityService.getTransformedTools(
+                        provider,
+                        sessionModeUpper,
+                        availableTools
+                    );
+
+                    // Extract tools array from response
+                    const transformedTools = (transformedToolsResponse as any).tools || [];
+
+                    // Add tools to request
+                    request.tools = transformedTools;
+                    
+                    console.log(`🔧 MCP: Sending ${transformedTools.length} tools with streaming request`);
+                } catch (error) {
+                    console.warn('🔧 MCP: Failed to fetch tools, continuing without them:', error);
                 }
-
-                // Get selected agent ID
-                const agentId = await StateManager.getInstance().getSelectedAgent();
-                if (!agentId) {
-                    console.warn('🔧 MCP: No agent selected, skipping tool intersection');
-                    throw new Error('No agent selected for tool intersection');
-                }
-
-                // Get available tools for current session and mode
-                const availableTools = await this.mcpCapabilityService.getAvailableTools(
-                    options?.sessionId || '',
-                    agentId,
-                    sessionModeUpper
-                );
-
-                // Transform tools for the current provider
-                const provider = await this.getProviderForModel(modelId);
-                const transformedToolsResponse = await this.mcpCapabilityService.getTransformedTools(
-                    provider,
-                    sessionModeUpper,
-                    availableTools
-                );
-
-                // Extract tools array from response
-                const transformedTools = (transformedToolsResponse as any).tools || [];
-
-                // Add tools to request
-                request.tools = transformedTools;
-                
-                console.log(`🔧 MCP: Sending ${transformedTools.length} tools with streaming request`);
-            } catch (error) {
-                console.warn('🔧 MCP: Failed to fetch tools, continuing without them:', error);
             }
+
+            // Stream the response
+            const streamResult = await new Promise<{
+                message: string; 
+                toolCalls?: any[];
+                tokensUsed: number;
+                creditsUsed: number;
+            }>((resolve, reject) => {
+                let iterationMessage = '';
+                let tokensUsed = 0;
+                let creditsUsed = 0;
+                let toolCalls: any[] | undefined;
+
+                this.apiClient.streamPost(
+                    '/api/chat/completion/stream',
+                    request,
+                    (event: string, data: string) => {
+                        try {
+                            if (event === 'content') {
+                                // Remove zero-width space marker that was added to preserve formatting
+                                const hasMarker = data.startsWith('\u200B');
+                                const content = hasMarker ? data.substring(1) : data;
+                                console.log(`📦 Content - Has marker: ${hasMarker}, Before: "${data.substring(0, 20).replace(/\u200B/g, '␣')}", After: "${content.substring(0, 20)}", Length: ${data.length} -> ${content.length}`);
+                                // Content chunk - append and notify
+                                iterationMessage += content;
+                                onChunk(content);
+                            } else if (event === 'tool_calls') {
+                                // Tool calls detected - parse them
+                                toolCalls = JSON.parse(data);
+                                console.log(`🔧 Tool calls received: ${toolCalls?.length || 0}`);
+                            } else if (event === 'done') {
+                                // Stream complete - parse final metadata
+                                const metadata = JSON.parse(data);
+                                tokensUsed = metadata.tokens || 0;
+                                creditsUsed = metadata.credits || 0;
+                            } else if (event === 'error') {
+                                // Error occurred
+                                const errorData = JSON.parse(data);
+                                reject(new Error(errorData.error || 'Stream error'));
+                            } else if (event === 'tool_calls_buffering') {
+                                // Tool calls being buffered - notify user
+                                const bufferingMsg = '\n\n_[Buffering tool calls...]_\n\n';
+                                onChunk(bufferingMsg);
+                            }
+                        } catch (error) {
+                            console.error('Error processing stream event:', error);
+                        }
+                    },
+                    (error) => {
+                        reject(error);
+                    },
+                    () => {
+                        // Stream completed successfully
+                        resolve({
+                            message: iterationMessage,
+                            toolCalls,
+                            tokensUsed,
+                            creditsUsed
+                        });
+                    }
+                );
+            });
+
+            // Accumulate results
+            fullMessage += streamResult.message;
+            totalTokens += streamResult.tokensUsed;
+            totalCredits += streamResult.creditsUsed;
+
+            // Check if we have tool calls to execute
+            if (!streamResult.toolCalls || streamResult.toolCalls.length === 0) {
+                // No more tool calls, we're done
+                console.log(`✅ Streaming complete after ${iteration} iterations`);
+                break;
+            }
+
+            // Parse tool calls from OpenAI format to GenericToolCall format
+            const genericToolCalls = streamResult.toolCalls.map((tc: any) => {
+                if (tc.function) {
+                    return {
+                        id: tc.id,
+                        name: tc.function.name,
+                        arguments: typeof tc.function.arguments === 'string' 
+                            ? JSON.parse(tc.function.arguments)
+                            : tc.function.arguments
+                    };
+                } else {
+                    return tc;
+                }
+            });
+
+            // Notify user about tool execution
+            const toolExecutionMsg = `\n\n_[Executing ${genericToolCalls.length} tool(s)...]_\n\n`;
+            onChunk(toolExecutionMsg);
+
+            // Execute tool calls
+            console.log(`🔧 Executing ${genericToolCalls.length} tool(s) in iteration ${iteration}`);
+            const toolResults = await this.toolExecutionService.executeToolCalls(genericToolCalls);
+
+            // Prepare next message with tool results
+            currentMessage = `Tool execution results:\n${JSON.stringify(toolResults, null, 2)}`;
+            
+            // Show tool results to user
+            const resultsMsg = `\n\n_[Tool execution complete, continuing...]_\n\n`;
+            onChunk(resultsMsg);
         }
 
-        // Stream the response
-        return new Promise((resolve, reject) => {
-            let fullMessage = '';
-            let tokensUsed = 0;
-            let creditsUsed = 0;
+        if (iteration >= maxIterations) {
+            console.warn(`⚠️ Reached max tool iterations (${maxIterations})`);
+        }
 
-            this.apiClient.streamPost(
-                '/api/chat/completion/stream',
-                request,
-                (event: string, data: string) => {
-                    try {
-                        if (event === 'content') {
-                            // Remove zero-width space marker that was added to preserve formatting
-                            const hasMarker = data.startsWith('\u200B');
-                            const content = hasMarker ? data.substring(1) : data;
-                            console.log(`📦 Content - Has marker: ${hasMarker}, Before: "${data.substring(0, 20).replace(/\u200B/g, '␣')}", After: "${content.substring(0, 20)}", Length: ${data.length} -> ${content.length}`);
-                            // Content chunk - append and notify
-                            fullMessage += content;
-                            onChunk(content);
-                        } else if (event === 'done') {
-                            // Stream complete - parse final metadata
-                            const metadata = JSON.parse(data);
-                            tokensUsed = metadata.tokens || 0;
-                            creditsUsed = metadata.credits || 0;
-                        } else if (event === 'error') {
-                            // Error occurred
-                            const errorData = JSON.parse(data);
-                            reject(new Error(errorData.error || 'Stream error'));
-                        } else if (event === 'tool_calls_buffering') {
-                            // Tool calls being buffered - notify user
-                            onChunk('\n[Tool execution in progress...]\n');
-                        } else if (event === 'tool_calls_complete') {
-                            // Tool calls executed (future enhancement)
-                            console.log('🔧 Tool calls completed:', data);
-                        }
-                    } catch (error) {
-                        console.error('Error processing stream event:', error);
-                    }
-                },
-                (error) => {
-                    reject(error);
-                },
-                () => {
-                    // Stream completed successfully
-                    resolve({
-                        message: fullMessage,
-                        tokensUsed,
-                        creditsUsed
-                    });
-                }
-            );
-        });
+        return {
+            message: fullMessage,
+            tokensUsed: totalTokens,
+            creditsUsed: totalCredits
+        };
     }
 
     /**
@@ -321,7 +398,7 @@ export class CompletionService {
     }
 
     /**
-     * Create a new chat session
+     * Create a new chat session with workspace context
      */
     public async createChatSession(options?: {
         teamId?: string;
@@ -339,6 +416,16 @@ export class CompletionService {
         const modelId = options?.modelId || await StateManager.getInstance().getSelectedModel();
         const agentId = options?.agentId || await StateManager.getInstance().getSelectedAgent();
 
+        // Collect workspace context
+        let workspaceContext: string | undefined;
+        try {
+            workspaceContext = await this.workspaceContextService.collectContext();
+            console.log('📋 Collected workspace context:', workspaceContext.substring(0, 200) + '...');
+        } catch (error) {
+            console.warn('⚠️ Failed to collect workspace context:', error);
+            // Continue without context - it's not critical
+        }
+
         const session = await this.apiClient.post<ChatSessionDTO>(
             '/api/chat/sessions',
             {},
@@ -347,6 +434,7 @@ export class CompletionService {
                 modelId,
                 agentId,
                 sessionName: options?.sessionName,
+                workspaceContext,
             }
         );
 
