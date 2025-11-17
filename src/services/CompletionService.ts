@@ -164,6 +164,141 @@ export class CompletionService {
     }
 
     /**
+     * Get AI completion with streaming support
+     */
+    public async getCompletionStream(
+        message: string,
+        onChunk: (chunk: string) => void,
+        options?: {
+            sessionId?: string;
+            modelId?: string;
+            estimatedTokens?: number;
+            useMCPTools?: boolean;
+            maxToolIterations?: number;
+        }
+    ): Promise<{message: string; tokensUsed: number; creditsUsed: number}> {
+        const userInfo = await StateManager.getInstance().getUserInfo();
+        if (!userInfo || !userInfo.userId) {
+            throw new Error('User not authenticated');
+        }
+
+        // Use selected model if not specified
+        let modelId = options?.modelId;
+        if (!modelId) {
+            modelId = await StateManager.getInstance().getSelectedModel();
+        }
+
+        // Get session mode for tool filtering
+        const sessionMode = await StateManager.getInstance().getSessionMode();
+        const sessionModeUpper = sessionMode.toUpperCase() as 'ASK' | 'AGENT';
+        const useMCPTools = options?.useMCPTools ?? true;
+        
+        // Standard completion request with stream=true
+        const request: AICompletionRequest = {
+            message,
+            chatSessionId: options?.sessionId,
+            aiModelId: modelId,
+            estimatedInputTokens: options?.estimatedTokens || Math.ceil(message.length / 4),
+            stream: true,
+        };
+
+        // Fetch and add MCP tools if enabled
+        if (useMCPTools && this.mcpCapabilityService.isToolsAvailable()) {
+            try {
+                // Ensure capabilities are registered for this session
+                if (options?.sessionId) {
+                    await this.mcpCapabilityService.registerCapabilities(options.sessionId);
+                }
+
+                // Get selected agent ID
+                const agentId = await StateManager.getInstance().getSelectedAgent();
+                if (!agentId) {
+                    console.warn('🔧 MCP: No agent selected, skipping tool intersection');
+                    throw new Error('No agent selected for tool intersection');
+                }
+
+                // Get available tools for current session and mode
+                const availableTools = await this.mcpCapabilityService.getAvailableTools(
+                    options?.sessionId || '',
+                    agentId,
+                    sessionModeUpper
+                );
+
+                // Transform tools for the current provider
+                const provider = await this.getProviderForModel(modelId);
+                const transformedToolsResponse = await this.mcpCapabilityService.getTransformedTools(
+                    provider,
+                    sessionModeUpper,
+                    availableTools
+                );
+
+                // Extract tools array from response
+                const transformedTools = (transformedToolsResponse as any).tools || [];
+
+                // Add tools to request
+                request.tools = transformedTools;
+                
+                console.log(`🔧 MCP: Sending ${transformedTools.length} tools with streaming request`);
+            } catch (error) {
+                console.warn('🔧 MCP: Failed to fetch tools, continuing without them:', error);
+            }
+        }
+
+        // Stream the response
+        return new Promise((resolve, reject) => {
+            let fullMessage = '';
+            let tokensUsed = 0;
+            let creditsUsed = 0;
+
+            this.apiClient.streamPost(
+                '/api/chat/completion/stream',
+                request,
+                (event: string, data: string) => {
+                    try {
+                        if (event === 'content') {
+                            // Remove zero-width space marker that was added to preserve formatting
+                            const hasMarker = data.startsWith('\u200B');
+                            const content = hasMarker ? data.substring(1) : data;
+                            console.log(`📦 Content - Has marker: ${hasMarker}, Before: "${data.substring(0, 20).replace(/\u200B/g, '␣')}", After: "${content.substring(0, 20)}", Length: ${data.length} -> ${content.length}`);
+                            // Content chunk - append and notify
+                            fullMessage += content;
+                            onChunk(content);
+                        } else if (event === 'done') {
+                            // Stream complete - parse final metadata
+                            const metadata = JSON.parse(data);
+                            tokensUsed = metadata.tokens || 0;
+                            creditsUsed = metadata.credits || 0;
+                        } else if (event === 'error') {
+                            // Error occurred
+                            const errorData = JSON.parse(data);
+                            reject(new Error(errorData.error || 'Stream error'));
+                        } else if (event === 'tool_calls_buffering') {
+                            // Tool calls being buffered - notify user
+                            onChunk('\n[Tool execution in progress...]\n');
+                        } else if (event === 'tool_calls_complete') {
+                            // Tool calls executed (future enhancement)
+                            console.log('🔧 Tool calls completed:', data);
+                        }
+                    } catch (error) {
+                        console.error('Error processing stream event:', error);
+                    }
+                },
+                (error) => {
+                    reject(error);
+                },
+                () => {
+                    // Stream completed successfully
+                    resolve({
+                        message: fullMessage,
+                        tokensUsed,
+                        creditsUsed
+                    });
+                }
+            );
+        });
+    }
+
+    /**
      * Get LLM provider name for a model ID
      */
     private async getProviderForModel(modelId?: string): Promise<string> {

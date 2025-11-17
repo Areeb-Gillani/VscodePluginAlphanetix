@@ -129,6 +129,7 @@ export interface AICompletionRequest {
     chatSessionId?: string;
     aiModelId?: string;
     estimatedInputTokens: number; // Required field - server expects non-null integer
+    stream?: boolean; // Whether to stream the response (default: true)
     tools?: any[]; // MCP tool definitions transformed for the LLM provider
     toolResults?: any[]; // Results from previous tool executions
 }

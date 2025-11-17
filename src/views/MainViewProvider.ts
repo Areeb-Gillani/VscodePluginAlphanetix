@@ -107,6 +107,11 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
         this.chatHistory.push({ role: 'user', content: text });
         this.updateView();
 
+        // Add a placeholder for the streaming assistant message
+        const assistantMessageIndex = this.chatHistory.length;
+        this.chatHistory.push({ role: 'assistant', content: '' });
+        this.updateView();
+
         try {
             // Create session if needed
             if (!this.currentSessionId) {
@@ -121,22 +126,33 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             // Check if message suggests using MCP features (file operations, workspace analysis)
             const shouldUseMCP = this.shouldUseMCPForMessage(text, mode);
 
-            // Get AI response with MCP tools enabled
-            const response = await this.completionService.getCompletion(text, {
-                sessionId: this.currentSessionId,
-                useMCPTools: shouldUseMCP,
-                maxToolIterations: 3
-            });
+            // Get AI response with streaming
+            const result = await this.completionService.getCompletionStream(
+                text,
+                (chunk: string) => {
+                    // Update the assistant message with each chunk
+                    this.chatHistory[assistantMessageIndex].content += chunk;
+                    this.updateView();
+                },
+                {
+                    sessionId: this.currentSessionId,
+                    useMCPTools: shouldUseMCP,
+                    maxToolIterations: 3
+                }
+            );
 
-            // Add AI response to history
-            this.chatHistory.push({ role: 'assistant', content: response.message });
+            // Final update with complete message (in case any processing is needed)
+            this.chatHistory[assistantMessageIndex].content = result.message;
             this.updateView();
+            
+            console.log(`✅ Stream complete - Tokens: ${result.tokensUsed}, Credits: ${result.creditsUsed}`);
         } catch (error: any) {
             console.error('Chat error:', error);
-            this.chatHistory.push({
+            // Replace the streaming message with an error
+            this.chatHistory[assistantMessageIndex] = {
                 role: 'error',
                 content: `Error: ${error.message}`,
-            });
+            };
             this.updateView();
         }
     }
