@@ -171,7 +171,7 @@ export class CompletionService {
      */
     public async getCompletionStream(
         message: string,
-        onChunk: (chunk: string) => void,
+        onChunk: (chunk: string, event?: string) => void,
         options?: {
             sessionId?: string;
             modelId?: string;
@@ -283,11 +283,13 @@ export class CompletionService {
                                 console.log(`📦 Content - Has marker: ${hasMarker}, Before: "${data.substring(0, 20).replace(/\u200B/g, '␣')}", After: "${content.substring(0, 20)}", Length: ${data.length} -> ${content.length}`);
                                 // Content chunk - append and notify
                                 iterationMessage += content;
-                                onChunk(content);
+                                onChunk(content, 'content');
                             } else if (event === 'tool_calls') {
                                 // Tool calls detected - parse them
                                 toolCalls = JSON.parse(data);
                                 console.log(`🔧 Tool calls received: ${toolCalls?.length || 0}`);
+                                // Notify UI to hide working status
+                                onChunk('', 'tool_calls');
                             } else if (event === 'done') {
                                 // Stream complete - parse final metadata
                                 const metadata = JSON.parse(data);
@@ -298,9 +300,8 @@ export class CompletionService {
                                 const errorData = JSON.parse(data);
                                 reject(new Error(errorData.error || 'Stream error'));
                             } else if (event === 'tool_calls_buffering') {
-                                // Tool calls being buffered - notify user
-                                const bufferingMsg = '\n\n_[Buffering tool calls...]_\n\n';
-                                onChunk(bufferingMsg);
+                                // Tool calls being buffered - notify UI to show working status
+                                onChunk('', 'tool_calls_buffering');
                             }
                         } catch (error) {
                             console.error('Error processing stream event:', error);
@@ -350,7 +351,7 @@ export class CompletionService {
 
             // Notify user about tool execution
             const toolExecutionMsg = `\n\n_[Executing ${genericToolCalls.length} tool(s)...]_\n\n`;
-            onChunk(toolExecutionMsg);
+            onChunk(toolExecutionMsg, 'content');
 
             // Execute tool calls
             console.log(`🔧 Executing ${genericToolCalls.length} tool(s) in iteration ${iteration}`);
@@ -361,7 +362,7 @@ export class CompletionService {
             
             // Show tool results to user
             const resultsMsg = `\n\n_[Tool execution complete, continuing...]_\n\n`;
-            onChunk(resultsMsg);
+            onChunk(resultsMsg, 'content');
         }
 
         if (iteration >= maxIterations) {

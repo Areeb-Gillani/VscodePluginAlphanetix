@@ -18,6 +18,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
     private modelService: ModelService;
     private currentSessionId?: string;
     private chatHistory: Array<{ role: string; content: string }> = [];
+    private isToolExecuting: boolean = false; // Track if tools are being executed
 
     constructor(private readonly _extensionUri: vscode.Uri) {
         this.completionService = CompletionService.getInstance();
@@ -129,8 +130,23 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             // Get AI response with streaming
             const result = await this.completionService.getCompletionStream(
                 text,
-                (chunk: string) => {
-                    // Update the assistant message with each chunk
+                (chunk: string, event?: string) => {
+                    // Handle tool buffering event - show working status
+                    if (event === 'tool_calls_buffering') {
+                        this.isToolExecuting = true;
+                        this.updateView();
+                        return;
+                    }
+                    
+                    // Handle tool calls event - hide working status
+                    if (event === 'tool_calls') {
+                        this.isToolExecuting = false;
+                        this.updateView();
+                        return;
+                    }
+                    
+                    // Handle content chunks (event === 'content' or undefined for backward compatibility)
+                    // Append chunk to assistant message and update view
                     this.chatHistory[assistantMessageIndex].content += chunk;
                     this.updateView();
                 },
@@ -143,6 +159,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
 
             // Final update with complete message (in case any processing is needed)
             this.chatHistory[assistantMessageIndex].content = result.message;
+            this.isToolExecuting = false;
             this.updateView();
             
             console.log(`✅ Stream complete - Tokens: ${result.tokensUsed}, Credits: ${result.creditsUsed}`);
@@ -153,6 +170,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                 role: 'error',
                 content: `Error: ${error.message}`,
             };
+            this.isToolExecuting = false;
             this.updateView();
         }
     }
@@ -238,6 +256,7 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
             selectedTeamId: selectedTeamId.status === 'fulfilled' ? selectedTeamId.value : null,
             selectedModelId: selectedModelId.status === 'fulfilled' ? selectedModelId.value : null,
             selectedAgentId: selectedAgentId.status === 'fulfilled' ? selectedAgentId.value : null,
+            isToolExecuting: this.isToolExecuting,
         });
     }
 
@@ -808,6 +827,31 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                     opacity: 0.8;
                 }
                 
+                /* Tool Execution Spinner */
+                .tool-executing-spinner {
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    gap: 10px;
+                    padding: 12px;
+                    margin: 8px 12px;
+                    background: var(--vscode-input-background);
+                    border: 1px solid var(--vscode-input-border);
+                    border-radius: 3px;
+                    color: var(--vscode-foreground);
+                    font-size: 11px;
+                }
+                .spinner-icon {
+                    width: 16px;
+                    height: 16px;
+                    color: var(--vscode-progressBar-background);
+                    animation: spin 0.8s linear infinite;
+                }
+                @keyframes spin {
+                    0% { transform: rotate(0deg); }
+                    100% { transform: rotate(360deg); }
+                }
+                
                 /* Status Styles */
                 .status-actions {
                     display: flex;
@@ -955,6 +999,17 @@ export class MainViewProvider implements vscode.WebviewViewProvider {
                                 : messagesHtml
                         }
                     </div>
+                    ${
+                        data.isToolExecuting
+                            ? `<div class="tool-executing-spinner">
+                                 <svg class="spinner-icon" viewBox="0 0 16 16" fill="none">
+                                     <circle cx="8" cy="8" r="6" stroke="currentColor" stroke-width="2" stroke-opacity="0.25"/>
+                                     <path d="M 8 2 A 6 6 0 0 1 14 8" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
+                                 </svg>
+                                 <span>Working...</span>
+                               </div>`
+                            : ''
+                    }
                     <div class="input-area">
                         <div class="input-container">
                             <textarea id="messageInput" class="input-field" placeholder="Ask a question..." rows="1"></textarea>
